@@ -11,3 +11,13 @@ First install SUMO and then the required packages from requirements.txt
 
 ## More Details 
 I wrote a report about this. You can find it inside report folder
+
+
+## others
+main.py to train model
+
+test.py to test model
+
+main_step.py to check with environment setup and visualization
+
+modified based on this repo: https://github.com/seolhokim/Mujoco-Pytorch 
