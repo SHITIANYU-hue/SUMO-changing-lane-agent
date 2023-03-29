@@ -141,7 +141,7 @@ class DQNAgent:
         train_speed_rate = tf.keras.metrics.Mean()
 
         # Training loop: collect samples, send to optimizer, repeat updates times.
-        next_obs = env.reset(gui=True, numVehicles=40)
+        next_obs = env.reset(gui=False, numVehicles=40)
         first_epoch = 0
         try:
             for epoch in range(first_epoch, epochs):

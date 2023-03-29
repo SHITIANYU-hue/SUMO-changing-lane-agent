@@ -36,45 +36,45 @@
 </configuration>
 -->
 
-<net version="1.6" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+<net version="1.6" junctionCornerDetail="5" limitTurnSpeed="25.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
 
     <location netOffset="0.00,0.00" convBoundary="-430.64,29.38,-105.31,83.85" origBoundary="-10000000000.00,-10000000000.00,10000000000.00,10000000000.00" projParameter="!"/>
 
     <edge id=":e0_0" function="internal">
-        <lane id=":e0_0_0" index="0" speed="3.90" length="2.58" shape="-422.64,74.25 -422.54,74.95 -422.24,75.45 -421.74,75.75 -421.04,75.85"/>
+        <lane id=":e0_0_0" index="0" speed="33.90" length="2.58" shape="-422.64,74.25 -422.54,74.95 -422.24,75.45 -421.74,75.75 -421.04,75.85"/>
     </edge>
     <edge id=":e0_1" function="internal">
-        <lane id=":e0_1_0" index="0" speed="6.08" length="7.74" shape="-425.84,74.25 -425.54,76.35 -424.64,77.85 -423.14,78.75 -421.04,79.05"/>
+        <lane id=":e0_1_0" index="0" speed="36.08" length="7.74" shape="-425.84,74.25 -425.54,76.35 -424.64,77.85 -423.14,78.75 -421.04,79.05"/>
     </edge>
     <edge id=":e0_2" function="internal">
-        <lane id=":e0_2_0" index="0" speed="7.66" length="12.90" shape="-429.04,74.25 -428.54,77.75 -427.04,80.25 -424.54,81.75 -421.04,82.25"/>
+        <lane id=":e0_2_0" index="0" speed="37.66" length="12.90" shape="-429.04,74.25 -428.54,77.75 -427.04,80.25 -424.54,81.75 -421.04,82.25"/>
     </edge>
     <edge id=":e1_0" function="internal">
-        <lane id=":e1_0_0" index="0" speed="3.90" length="2.56" shape="-115.31,75.85 -114.62,75.75 -114.12,75.45 -113.82,74.96 -113.71,74.26"/>
+        <lane id=":e1_0_0" index="0" speed="33.90" length="2.56" shape="-115.31,75.85 -114.62,75.75 -114.12,75.45 -113.82,74.96 -113.71,74.26"/>
     </edge>
     <edge id=":e1_1" function="internal">
-        <lane id=":e1_1_0" index="0" speed="6.08" length="7.69" shape="-115.31,79.05 -113.23,78.75 -111.74,77.86 -110.83,76.37 -110.51,74.29"/>
+        <lane id=":e1_1_0" index="0" speed="36.08" length="7.69" shape="-115.31,79.05 -113.23,78.75 -111.74,77.86 -110.83,76.37 -110.51,74.29"/>
     </edge>
     <edge id=":e1_2" function="internal">
-        <lane id=":e1_2_0" index="0" speed="7.66" length="12.82" shape="-115.31,82.25 -111.84,81.75 -109.35,80.27 -107.84,77.79 -107.31,74.32"/>
+        <lane id=":e1_2_0" index="0" speed="37.66" length="12.82" shape="-115.31,82.25 -111.84,81.75 -109.35,80.27 -107.84,77.79 -107.31,74.32"/>
     </edge>
     <edge id=":e2_0" function="internal">
-        <lane id=":e2_0_0" index="0" speed="3.90" length="2.60" shape="-113.40,38.99 -113.49,38.29 -113.79,37.78 -114.29,37.48 -115.00,37.38"/>
+        <lane id=":e2_0_0" index="0" speed="33.90" length="2.60" shape="-113.40,38.99 -113.49,38.29 -113.79,37.78 -114.29,37.48 -115.00,37.38"/>
     </edge>
     <edge id=":e2_1" function="internal">
-        <lane id=":e2_1_0" index="0" speed="6.08" length="7.79" shape="-110.20,39.02 -110.48,36.90 -111.38,35.39 -112.88,34.48 -115.00,34.18"/>
+        <lane id=":e2_1_0" index="0" speed="36.08" length="7.79" shape="-110.20,39.02 -110.48,36.90 -111.38,35.39 -112.88,34.48 -115.00,34.18"/>
     </edge>
     <edge id=":e2_2" function="internal">
-        <lane id=":e2_2_0" index="0" speed="7.65" length="12.99" shape="-107.00,39.05 -107.47,35.52 -108.96,33.00 -111.47,31.48 -115.00,30.98"/>
+        <lane id=":e2_2_0" index="0" speed="37.65" length="12.99" shape="-107.00,39.05 -107.47,35.52 -108.96,33.00 -111.47,31.48 -115.00,30.98"/>
     </edge>
     <edge id=":e3_0" function="internal">
-        <lane id=":e3_0_0" index="0" speed="3.90" length="2.58" shape="-421.04,37.38 -421.74,37.48 -422.24,37.78 -422.54,38.28 -422.64,38.98"/>
+        <lane id=":e3_0_0" index="0" speed="33.90" length="2.58" shape="-421.04,37.38 -421.74,37.48 -422.24,37.78 -422.54,38.28 -422.64,38.98"/>
     </edge>
     <edge id=":e3_1" function="internal">
-        <lane id=":e3_1_0" index="0" speed="6.08" length="7.74" shape="-421.04,34.18 -423.14,34.48 -424.64,35.38 -425.54,36.88 -425.84,38.98"/>
+        <lane id=":e3_1_0" index="0" speed="36.08" length="7.74" shape="-421.04,34.18 -423.14,34.48 -424.64,35.38 -425.54,36.88 -425.84,38.98"/>
     </edge>
     <edge id=":e3_2" function="internal">
-        <lane id=":e3_2_0" index="0" speed="7.66" length="12.90" shape="-421.04,30.98 -424.54,31.48 -427.04,32.98 -428.54,35.48 -429.04,38.98"/>
+        <lane id=":e3_2_0" index="0" speed="37.66" length="12.90" shape="-421.04,30.98 -424.54,31.48 -427.04,32.98 -428.54,35.48 -429.04,38.98"/>
     </edge>
 
     <edge id="gneE6" from="e0" to="e1" priority="-1">

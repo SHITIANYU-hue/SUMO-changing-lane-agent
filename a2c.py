@@ -56,7 +56,7 @@ class A2CAgent:
                                                                                'action_value': self.action_value})
     else:
       self.model.compile(optimizer=ko.Adam(lr=self.lr), loss=[self._logits_loss, self._value_loss])
-      next_obs = env.reset(gui=True, numVehicles=35)
+      next_obs = env.reset(gui=False, numVehicles=35)
     while True:
         for step in range(steps_per_epoch):
             action, values = self.action_value(self.model, next_obs[None, :])
@@ -103,10 +103,11 @@ class A2CAgent:
 
       # Training loop: collect samples, send to optimizer, repeat updates times.
       ep_rewards = [0.0]
-      next_obs = env.reset(gui=True, numVehicles=25)
+      next_obs = env.reset(gui=False, numVehicles=25)
 
       try:
           for epoch in range(first_epoch, epochs):
+              print('epoch:',epoch)
               for step in range(steps_per_epoch):
                   observations[step] = next_obs.copy()
                   actions[step], values[step] = self.action_value(self.model, next_obs[None, :])
@@ -133,6 +134,7 @@ class A2CAgent:
               # Performs a full training step on the collected batch.
               # Note: no need to mess around with gradients, Keras API handles it.
               losses = self.model.train_on_batch(observations, [acts_and_advs, returns])
+              print('loss',losses)
               loss_avg.update_state(losses)
 
               logging.info("[%d/%d] Losses: %s" % (epoch + 1, epochs, losses))

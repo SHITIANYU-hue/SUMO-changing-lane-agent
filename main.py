@@ -18,9 +18,9 @@ parser = ArgumentParser('parameters')
 
 parser.add_argument("--env_name", type=str, default ='gym_sumo-v0')
 parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to adjust (default : ppo)')
-parser.add_argument('--train', type=bool, default=False, help="(default: True)")
+parser.add_argument('--train', type=bool, default=True, help="(default: True)")
 parser.add_argument('--render', type=bool, default=False, help="(default: False)")
-parser.add_argument('--epochs', type=int, default=1, help='number of epochs, (default: 1000)')
+parser.add_argument('--epochs', type=int, default=1000, help='number of epochs, (default: 1000)')
 parser.add_argument('--tensorboard', type=bool, default=False, help='use_tensorboard, (default: False)')
 parser.add_argument("--load", type=str, default = 'no', help = 'load network name in ./model_weights')
 parser.add_argument("--save_interval", type=int, default = 100, help = 'save interval(default: 100)')
@@ -46,7 +46,7 @@ env = gym.make(args.env_name)
 action_dim = 2
 state_dim = 37
 state_rms = RunningMeanStd(state_dim)
-
+exp_tag='discrte'
 
 if args.algo == 'ppo' :
     agent = PPO(writer, device, state_dim, action_dim, agent_args)
@@ -70,7 +70,7 @@ avg_scors=[]
 
 if agent_args.on_policy == True:
     score = 0.0
-    state = env.reset(gui=True, numVehicles=15)
+    state = env.reset(gui=False, numVehicles=15)
     # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
     for n_epi in range(args.epochs):
         for t in range(agent_args.traj_length):
@@ -97,6 +97,7 @@ if agent_args.on_policy == True:
             score += reward
             if done:
                 env.close()
+                state = env.reset(gui=False, numVehicles=15)
                 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
                 score_lst.append(score)
                 if args.tensorboard:
@@ -106,12 +107,17 @@ if agent_args.on_policy == True:
                 state = next_state
                 state_ = next_state_
 
-
+        agent.train_net(n_epi)
+        state_rms.update(np.vstack(state_lst))
         if n_epi%args.print_interval==0 and n_epi!=0:
             print("# of episode :{}, avg score : {:.1f}".format(n_epi, sum(score_lst)/len(score_lst)))
             avg_scors.append(sum(score_lst)/len(score_lst))
             print('avg scores',avg_scors)
-
+            np.save(f'avgscores_{exp_tag}.npy',avg_scors)
+            score_lst = []
+        if n_epi%args.save_interval==0 and n_epi!=0:
+            torch.save(agent.state_dict(),f'./model_weights/agent_{exp_tag}'+str(n_epi))
+            
 else : # off policy 
     for n_epi in range(args.epochs):
         score = 0.0
@@ -134,10 +140,13 @@ else : # off policy
             state = next_state
 
             score += reward
-
+            if agent.data.data_idx > agent_args.learn_start_size: 
+                agent.train_net(agent_args.batch_size, n_epi)
         score_lst.append(score)
         if args.tensorboard:
             writer.add_scalar("score/score", score, n_epi)
         if n_epi%args.print_interval==0 and n_epi!=0:
             print("# of episode :{}, avg score : {:.1f}".format(n_epi, sum(score_lst)/len(score_lst)))
             score_lst = []
+        if n_epi%args.save_interval==0 and n_epi!=0:
+            torch.save(agent.state_dict(),'./model_weights/agent_'+str(n_epi))

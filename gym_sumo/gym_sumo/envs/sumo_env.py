@@ -21,6 +21,11 @@ def angle_between(p1, p2, rl_angle):
 def get_distance(a, b):
 	return distance.euclidean(a, b)
 
+def map_action(value,clamp=3):
+	output_value = (value + clamp) / clamp
+	return round(output_value)
+
+
 
 class SumoEnv(gym.Env):
 	def __init__(self):
@@ -41,13 +46,13 @@ class SumoEnv(gym.Env):
 		self.numVehicles = 0
 		self.vType = 0
 		self.lane_ids = []
-		self.max_steps = 10000
+		self.max_steps = 4000
 		self.curr_step = 0
 		self.collision = False
 		self.done = False
 
 
-	def start(self, gui=False, numVehicles=30, vType='human', network_conf="networks/highway/sumoconfig.sumo.cfg", network_xml='networks/highway/highway.net.xml'):
+	def start(self, gui=False, numVehicles=10, vType='human', network_conf="networks/highway/sumoconfig.sumo.cfg", network_xml='networks/highway/highway.net.xml'):
 		self.gui = gui
 		self.numVehicles = numVehicles
 		self.vType = vType
@@ -61,9 +66,9 @@ class SumoEnv(gym.Env):
 		home = os.getenv("HOME")
 
 		if self.gui:
-			sumoBinary = home + "/gitprograms/sumo/bin/sumo-gui"
+			sumoBinary = home + "/code/sumo-1.8.0/bin/sumo-gui"
 		else:
-			sumoBinary = home + "/gitprograms/sumo/bin/sumo"
+			sumoBinary = home + "/code/sumo-1.8.0/bin/sumo"
 		sumoCmd = [sumoBinary, "-c", self.network_conf, "--no-step-log", "true", "-W"]
 		traci.start(sumoCmd)
 
@@ -90,7 +95,6 @@ class SumoEnv(gym.Env):
 
 		# Setting up useful parameters
 		self.update_params()
-
 
 	def update_params(self):
 		# initialize params
@@ -233,15 +237,15 @@ class SumoEnv(gym.Env):
 		'''
 		# Rewards Parameters
 		alpha_comf = 0.005
-		w_lane = 2.5
+		w_lane = 0
 		w_speed = 2.5
-		w_change = 2.0
+		w_change = 1.0
 		w_eff = 0.0005
 		
 		# Comfort reward 
 		jerk = self.compute_jerk()
 		R_comf = -alpha_comf*jerk**2
-		
+		action[0]=map_action(action[0])
 		#Efficiency reward
 		try:
 			lane_width = traci.lane.getWidth(traci.vehicle.getLaneID(self.name))
@@ -254,10 +258,10 @@ class SumoEnv(gym.Env):
 		# Speed
 		R_speed = -np.abs(self.speed - self.target_speed)
 		# Penalty for changing lane
-		if action:
+		if action[0]!=0:
 			R_change = -1
 		else:
-			R_change = 1
+			R_change = 0
 		# Eff
 		R_eff = w_eff*(w_lane*R_lane + w_speed*R_speed + w_change*R_change)
 		
@@ -272,7 +276,19 @@ class SumoEnv(gym.Env):
 		R_tot = R_comf + R_eff + R_safe
 		return [R_tot, R_comf, R_eff, R_safe]
 		
-		
+
+	def apply_acceleration(self, vid, acc, smooth=True):
+		"""See parent class."""
+		# to handle the case of a single vehicle
+
+		this_vel = traci.vehicle.getSpeed(vid)
+		next_vel = max([this_vel + acc * 0.1, 0])
+		if smooth:
+			traci.vehicle.slowDown(vid, next_vel, 1e-3)
+		else:
+			traci.vehicle.setSpeed(vid, next_vel)
+
+
 	def step(self, action):
 		'''
 		This will :
@@ -284,21 +300,27 @@ class SumoEnv(gym.Env):
 		- return nextstate, reward and done
 		'''
 		# Action legend : 0 stay, 1 change to right, 2 change to left
+		action[0]=map_action(action[0])
 		if self.curr_lane[0] == 'e':
-			action = 0
-		if action != 0:
-			if action == 1:
+			action[0] = 0
+		if action[0] != 0:
+			if action[0] == 1:
 				if self.curr_sublane == 1:
 					traci.vehicle.changeLane(self.name, 0, 0.1)
 				elif self.curr_sublane == 2:
 					traci.vehicle.changeLane(self.name, 1, 0.1)
-			if action == 2:
+			if action[0] == 2:
 				if self.curr_sublane == 0:
 					traci.vehicle.changeLane(self.name, 1, 0.1)
 				elif self.curr_sublane == 1:
 					traci.vehicle.changeLane(self.name, 2, 0.1)
+
+
+		self.apply_acceleration(self.name,action[1])
+
 		# Sim step
 		traci.simulationStep()
+		# action[0]=map_to_minus_zero_plus(action[0])
 		# Check collision
 		collision = self.detect_collision()
 		# Compute Reward 
@@ -309,21 +331,21 @@ class SumoEnv(gym.Env):
 		next_state = self.get_state()
 		# Update curr state
 		self.curr_step += 1
-		'''
-		if self.curr_step > self.max_steps:
+		
+		# Return
+		if self.curr_step <= self.max_steps:
+			done = collision
+		else:
 			done = True
 			self.curr_step = 0
-		else:
-			done = False
-		'''
-		# Return
-		done = collision
+
 		return next_state, reward, done, collision
 		
 	def render(self, mode='human', close=False):
 		pass
 
-	def reset(self, gui=False, numVehicles=20, vType='human'):
+	def reset(self, gui=False, numVehicles=10, vType='human'):
+
 		self.start(gui, numVehicles, vType)
 		return self.get_state()
 

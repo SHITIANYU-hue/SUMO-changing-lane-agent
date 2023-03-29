@@ -4,3 +4,5 @@ checkpoints/*
 logs/*
 Untitled.ipynb
 car_model_bckp.py
+runs/*
+*.npy
