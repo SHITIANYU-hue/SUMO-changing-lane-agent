@@ -44,7 +44,7 @@
     <route edges="gneE6 gneE7 gneE8 gneE9" color="yellow" id="route_0"/>
 
     <vType id="human" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="70" minGap="0" laneChangeModel="SL2015" guiShape='passenger/wagon'/>
-    <vType id="rl" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="50"  carFollowModel="IDM" 
+    <vType id="rl" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="35"  carFollowModel="IDM" 
 minGap="2" laneChangeModel="SL2015"  guiShape='passenger/van' color="1,0,0"/>
 
 
