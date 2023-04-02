@@ -6,7 +6,7 @@ import gym
 import numpy as np
 import os
 import gym_sumo
-
+import time
 from agents.ppo import PPO
 from agents.sac import SAC
 from agents.ddpg import DDPG
@@ -35,18 +35,21 @@ agent_args = Dict(parser,args.algo)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 if args.use_cuda == False:
     device = 'cpu'
-    
-if args.tensorboard:
-    from torch.utils.tensorboard import SummaryWriter
-    writer = SummaryWriter()
-else:
-    writer = None
-    
+
 env = gym.make(args.env_name)
 action_dim = 2
 state_dim = 37
 state_rms = RunningMeanStd(state_dim)
-exp_tag='discrte'
+exp_tag='discrte_test'
+
+unix_timestamp = int(time.time())
+
+    
+if args.tensorboard:
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter(f'score/{exp_tag}_{unix_timestamp}')
+else:
+    writer = None
 
 if args.algo == 'ppo' :
     agent = PPO(writer, device, state_dim, action_dim, agent_args)
@@ -70,11 +73,14 @@ avg_scors=[]
 
 if agent_args.on_policy == True:
     score = 0.0
-    state = env.reset(gui=False, numVehicles=15)
+    score_comfort=0
+    score_eff=0
+    score_safe=0
     # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
     for n_epi in range(args.epochs):
+        state = env.reset(gui=False, numVehicles=15)
         for t in range(agent_args.traj_length):
-            # print('t',t)
+
             if args.render:    
                 env.render()
             state_lst.append(state)
@@ -82,7 +88,6 @@ if agent_args.on_policy == True:
             dist = torch.distributions.Normal(mu,sigma[0])
             action = dist.sample()
             log_prob = dist.log_prob(action).sum(-1,keepdim = True)
-            # print('action',action)
             next_state_, reward_info, done, info = env.step(action.cpu().numpy())
             reward, R_comf, R_eff, R_safe = reward_info
             next_state = np.clip((next_state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
@@ -95,14 +100,22 @@ if agent_args.on_policy == True:
                                         )
             agent.put_data(transition) 
             score += reward
+            score_comfort +=R_comf
+            score_eff += R_eff
+            score_safe +=R_safe
             if done:
-                env.close()
-                state = env.reset(gui=False, numVehicles=15)
                 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
                 score_lst.append(score)
                 if args.tensorboard:
                     writer.add_scalar("score/score", score, n_epi)
+                    writer.add_scalar("score/comfort", score_comfort, n_epi)
+                    writer.add_scalar("score/safe", score_safe, n_epi)
+                    writer.add_scalar("score/eff", score_eff, n_epi)
+
                 score = 0
+                env.close()
+                break
+
             else:
                 state = next_state
                 state_ = next_state_
@@ -113,7 +126,7 @@ if agent_args.on_policy == True:
             print("# of episode :{}, avg score : {:.1f}".format(n_epi, sum(score_lst)/len(score_lst)))
             avg_scors.append(sum(score_lst)/len(score_lst))
             print('avg scores',avg_scors)
-            np.save(f'avgscores_{exp_tag}.npy',avg_scors)
+            np.save(f'score/avgscores_{exp_tag}_{unix_timestamp}.npy',avg_scors)
             score_lst = []
         if n_epi%args.save_interval==0 and n_epi!=0:
             torch.save(agent.state_dict(),f'./model_weights/agent_{exp_tag}'+str(n_epi))
