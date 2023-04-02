@@ -96,12 +96,13 @@ if agent_args.on_policy == True:
             agent.put_data(transition) 
             score += reward
             if done:
-                env.close()
+                print('collision',done)
                 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
                 score_lst.append(score)
                 if args.tensorboard:
                     writer.add_scalar("score/score", score, n_epi)
                 score = 0
+                break
             else:
                 state = next_state
                 state_ = next_state_
@@ -111,6 +112,8 @@ if agent_args.on_policy == True:
             print("# of episode :{}, avg score : {:.1f}".format(n_epi, sum(score_lst)/len(score_lst)))
             avg_scors.append(sum(score_lst)/len(score_lst))
             print('avg scores',avg_scors)
+        
+        env.close()
 
 else : # off policy 
     for n_epi in range(args.epochs):
