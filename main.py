@@ -17,7 +17,7 @@ os.makedirs('./model_weights', exist_ok=True)
 parser = ArgumentParser('parameters')
 
 parser.add_argument("--env_name", type=str, default ='gym_sumo-v0')
-parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to adjust (default : ppo)')
+parser.add_argument("--algo", type=str, default = 'sac', help = 'algorithm to adjust (default : ppo)')
 parser.add_argument('--train', type=bool, default=True, help="(default: True)")
 parser.add_argument('--render', type=bool, default=False, help="(default: False)")
 parser.add_argument('--epochs', type=int, default=1000, help='number of epochs, (default: 1000)')
@@ -40,14 +40,14 @@ env = gym.make(args.env_name)
 action_dim = 2
 state_dim = 37
 state_rms = RunningMeanStd(state_dim)
-exp_tag='discrte_test'
+exp_tag='discrte'
 
 unix_timestamp = int(time.time())
 
     
 if args.tensorboard:
     from torch.utils.tensorboard import SummaryWriter
-    writer = SummaryWriter(f'score/{exp_tag}_{unix_timestamp}')
+    writer = SummaryWriter(f'score/{exp_tag}_{args.algo}_{unix_timestamp}')
 else:
     writer = None
 
@@ -113,6 +113,9 @@ if agent_args.on_policy == True:
                     writer.add_scalar("score/eff", score_eff, n_epi)
 
                 score = 0
+                score_comfort=0
+                score_eff=0
+                score_safe=0
                 env.close()
                 break
 
@@ -126,22 +129,29 @@ if agent_args.on_policy == True:
             print("# of episode :{}, avg score : {:.1f}".format(n_epi, sum(score_lst)/len(score_lst)))
             avg_scors.append(sum(score_lst)/len(score_lst))
             print('avg scores',avg_scors)
-            np.save(f'score/avgscores_{exp_tag}_{unix_timestamp}.npy',avg_scors)
+            np.save(f'score/avgscores_{exp_tag}_{args.algo}_{unix_timestamp}.npy',avg_scors)
             score_lst = []
         if n_epi%args.save_interval==0 and n_epi!=0:
-            torch.save(agent.state_dict(),f'./model_weights/agent_{exp_tag}'+str(n_epi))
+            torch.save(agent.state_dict(),f'./model_weights/agent_{exp_tag}_{args.algo}'+str(n_epi))
             
 else : # off policy 
+    score = 0.0
+    score_comfort=0
+    score_eff=0
+    score_safe=0
     for n_epi in range(args.epochs):
-        score = 0.0
         state = env.reset(gui=False, numVehicles=25)
         done = False
-        while not done:
+        for t in range(agent_args.traj_length):
             if args.render:    
                 env.render()
             action, _ = agent.get_action(torch.from_numpy(state).float().to(device))
+            if args.algo=='sac': ##not sure why action generate by sac needs to take out
+                action=action[0]
             action = action.cpu().detach().numpy()
-            next_state, reward, done, info = env.step(action)
+            next_state_, reward_info, done, info = env.step(action)
+            reward, R_comf, R_eff, R_safe = reward_info
+            next_state = np.clip((next_state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
             transition = make_transition(state,\
                                          action,\
                                          np.array([reward*args.reward_scaling]),\
@@ -149,17 +159,37 @@ else : # off policy
                                          np.array([done])\
                                         )
             agent.put_data(transition) 
-
-            state = next_state
-
             score += reward
+            score_comfort +=R_comf
+            score_eff += R_eff
+            score_safe +=R_safe
+            if done:
+                # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
+                score_lst.append(score)
+                if args.tensorboard:
+                    writer.add_scalar("score/score", score, n_epi)
+                    writer.add_scalar("score/comfort", score_comfort, n_epi)
+                    writer.add_scalar("score/safe", score_safe, n_epi)
+                    writer.add_scalar("score/eff", score_eff, n_epi)
+                score = 0
+                score_comfort=0
+                score_eff=0
+                score_safe=0
+                env.close()
+                break              
+
+            else:
+                state = next_state
+
             if agent.data.data_idx > agent_args.learn_start_size: 
                 agent.train_net(agent_args.batch_size, n_epi)
-        score_lst.append(score)
-        if args.tensorboard:
-            writer.add_scalar("score/score", score, n_epi)
+
+
         if n_epi%args.print_interval==0 and n_epi!=0:
             print("# of episode :{}, avg score : {:.1f}".format(n_epi, sum(score_lst)/len(score_lst)))
+            avg_scors.append(sum(score_lst)/len(score_lst))
+            print('avg scores',avg_scors)
+            np.save(f'score/avgscores_{exp_tag}_{args.algo}_{unix_timestamp}.npy',avg_scors)
             score_lst = []
         if n_epi%args.save_interval==0 and n_epi!=0:
-            torch.save(agent.state_dict(),'./model_weights/agent_'+str(n_epi))
+            torch.save(agent.state_dict(),f'./model_weights/agent_{exp_tag}_{args.algo}'+str(n_epi))
