@@ -12,6 +12,7 @@ class Actor(Network):
             self.logstd = nn.Parameter(torch.zeros(1, output_dim))
     def forward(self, x):
         mu = self._forward(x) ## whether we need to clamp here?
+        mu = mu.clamp(-3, 3)
         if self.trainable_std == True:
             std = torch.exp(self.logstd)
         else:
