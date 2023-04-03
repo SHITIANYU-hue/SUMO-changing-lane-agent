@@ -17,7 +17,7 @@ os.makedirs('./model_weights', exist_ok=True)
 parser = ArgumentParser('parameters')
 
 parser.add_argument("--env_name", type=str, default ='gym_sumo-v0')
-parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to adjust (default : ppo)')
+parser.add_argument("--algo", type=str, default = 'ddpg', help = 'algorithm to adjust (default : ppo)')
 parser.add_argument('--train', type=bool, default=False, help="(default: True)")
 parser.add_argument('--render', type=bool, default=False, help="(default: False)")
 parser.add_argument('--epochs', type=int, default=1, help='number of epochs, (default: 1000)')
@@ -118,14 +118,17 @@ if agent_args.on_policy == True:
 else : # off policy 
     for n_epi in range(args.epochs):
         score = 0.0
-        state = env.reset(gui=False, numVehicles=25)
+        state = env.reset(gui=True, numVehicles=25)
         done = False
-        while not done:
+        for t in range(agent_args.traj_length):
             if args.render:    
                 env.render()
             action, _ = agent.get_action(torch.from_numpy(state).float().to(device))
+            if args.algo=='sac': ##not sure why action generate by sac needs to take out
+                action=action[0]
             action = action.cpu().detach().numpy()
-            next_state, reward, done, info = env.step(action)
+            next_state, reward_info, done, info = env.step(action)
+            reward, R_comf, R_eff, R_safe = reward_info
             transition = make_transition(state,\
                                          action,\
                                          np.array([reward*args.reward_scaling]),\
