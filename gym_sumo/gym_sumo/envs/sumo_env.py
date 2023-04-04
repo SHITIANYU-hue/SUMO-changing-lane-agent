@@ -7,6 +7,7 @@ from math import atan2, degrees
 from collections import deque
 import os
 
+# check lane change and speed mode params: https://github.com/flow-project/flow/blob/master/flow/core/params.py
 
 def angle_between(p1, p2, rl_angle):
 	xDiff = p2[0] - p1[0]
@@ -61,6 +62,7 @@ class SumoEnv(gym.Env):
 		self.curr_step = 0
 		self.collision = False
 		self.done = False
+		self.lane_change_model = 1621
 
 		# Starting sumo
 		home = os.getenv("HOME")
@@ -82,8 +84,8 @@ class SumoEnv(gym.Env):
 			# Go here to find out what does it mean
 			# https://sumo.dlr.de/docs/TraCI/Change_Vehicle_State.html#lane_change_mode_0xb6
 			#lane_change_model = np.int('100010001010', 2)
-			lane_change_model = 256
-			traci.vehicle.setLaneChangeMode(veh_name, lane_change_model)
+			
+			traci.vehicle.setLaneChangeMode(veh_name, self.lane_change_model)
 		traci.vehicle.add(self.name, routeID='route_0', typeID='rl')
 
 		# Do some random step to distribute the vehicles
@@ -92,7 +94,6 @@ class SumoEnv(gym.Env):
 
 		# Setting the lane change mode to 0 meaning that we disable any autonomous lane change and collision avoidance
 		traci.vehicle.setLaneChangeMode(self.name, 0)
-
 		# Setting up useful parameters
 		self.update_params()
 
@@ -224,6 +225,7 @@ class SumoEnv(gym.Env):
 			long_speed = traci.vehicle.getSpeed(vehicle_name)
 			acc = traci.vehicle.getAcceleration(vehicle_name)
 			dist = get_distance(self.pos, (lat_pos, long_pos))
+			lane=traci.vehicle.getLaneIndex(vehicle_name)
 			return np.array([dist, long_speed, acc, lat_pos])
 		
 		
@@ -236,25 +238,17 @@ class SumoEnv(gym.Env):
 			 Taken from Ye et al.
 		'''
 		# Rewards Parameters
-		alpha_comf = 0.005
+		alpha_comf = 0.1
 		w_lane = 0
-		w_speed = 2.5
-		w_change = 1.0
-		w_eff = 0.0005
+		w_speed = 3
+		w_change = 0
+		w_eff = 1
 		
 		# Comfort reward 
 		jerk = self.compute_jerk()
 		R_comf = -alpha_comf*jerk**2
 		action[0]=map_action(action[0])
 		#Efficiency reward
-		try:
-			lane_width = traci.lane.getWidth(traci.vehicle.getLaneID(self.name))
-		except:
-			print(traci.vehicle.getLaneID(self.name))
-			lane_width = 3.2
-		desired_x = self.pos[0] + lane_width*np.cos(self.angle)
-		desired_y = self.pos[1] + lane_width*np.sin(self.angle)
-		R_lane = -(np.abs(self.pos[0] - desired_x) + np.abs(self.pos[1] - desired_y))
 		# Speed
 		R_speed = -np.abs(self.speed - self.target_speed)
 		# Penalty for changing lane
@@ -263,12 +257,12 @@ class SumoEnv(gym.Env):
 		else:
 			R_change = 0
 		# Eff
-		R_eff = w_eff*(w_lane*R_lane + w_speed*R_speed + w_change*R_change)
+		R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt not since it is not mandatory lane change
 		
 		# Safety Reward
 		# Just penalize collision for now
 		if collision:
-			R_safe = -100
+			R_safe = -10
 		else:
 			R_safe = +1
 		
@@ -280,7 +274,7 @@ class SumoEnv(gym.Env):
 	def apply_acceleration(self, vid, acc, smooth=True):
 		"""See parent class."""
 		# to handle the case of a single vehicle
-
+		
 		this_vel = traci.vehicle.getSpeed(vid)
 		next_vel = max([this_vel + acc * 0.1, 0])
 		if smooth:
@@ -289,7 +283,7 @@ class SumoEnv(gym.Env):
 			traci.vehicle.setSpeed(vid, next_vel)
 
 
-	def step(self, action):
+	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,controller='IDM'):
 		'''
 		This will :
 		- send action, namely change lane or stay 
@@ -299,25 +293,125 @@ class SumoEnv(gym.Env):
 		- compute nextstate
 		- return nextstate, reward and done
 		'''
+
+		lead_info = traci.vehicle.getLeader(self.name)
+		trail_info = traci.vehicle.getFollower(self.name)
+		this_vel=traci.vehicle.getSpeed(self.name)
+		target_speed=traci.vehicle.getAllowedSpeed(self.name)
+
+		if lead_info is None or lead_info == '':  # no car ahead
+			s_star=0
+			headway=999999
+			lead_vel=target_speed
+		else:
+			lead_id=traci.vehicle.getLeader(self.name)[0]
+			headway = traci.vehicle.getLeader(self.name)[1]
+			lead_vel=traci.vehicle.getSpeed(lead_id)
+
+		if sumo_lc:
+			# 2^0: right neighbors (else: left)
+			# 2^1: neighbors ahead (else: behind)
+			# 2^2: only neighbors blocking a potential lane change (else: all)
+			# right: -1, left: 1. sublane-change within current lane: 0.
+			traci.vehicle.setLaneChangeMode(self.name,self.lane_change_model)
+			# neightbor_vehicle=traci.vehicle.getNeighbors(self.name,2^0)
+			if this_vel<lead_vel and lead_info is not None:
+				change_right=traci.vehicle.couldChangeLane(self.name,-1)
+				if change_right:
+					traci.vehicle.changeLane(self.name,1, 0.1)
+
+				change_left=traci.vehicle.couldChangeLane(self.name,1)
+				if change_left:
+					traci.vehicle.changeLane(self.name,2, 0.1)
+
+
+
+
 		# Action legend : 0 stay, 1 change to right, 2 change to left
-		action[0]=map_action(action[0])
-		if self.curr_lane[0] == 'e':
-			action[0] = 0
-		if action[0] != 0:
-			if action[0] == 1:
-				if self.curr_sublane == 1:
-					traci.vehicle.changeLane(self.name, 0, 0.1)
-				elif self.curr_sublane == 2:
-					traci.vehicle.changeLane(self.name, 1, 0.1)
-			if action[0] == 2:
-				if self.curr_sublane == 0:
-					traci.vehicle.changeLane(self.name, 1, 0.1)
-				elif self.curr_sublane == 1:
-					traci.vehicle.changeLane(self.name, 2, 0.1)
+		else:
+			action[0]=map_action(action[0])
+			# action[1]=max(max_dec, min(action[1], max_acc))
+			if self.curr_lane[0] == 'e':
+				action[0] = 0
+			if action[0] != 0:
+				if action[0] == 1:
+					if self.curr_sublane == 1:
+						traci.vehicle.changeLane(self.name, 0, 0.1)
+					elif self.curr_sublane == 2:
+						traci.vehicle.changeLane(self.name, 1, 0.1)
+				if action[0] == 2:
+					if self.curr_sublane == 0:
+						traci.vehicle.changeLane(self.name, 1, 0.1)
+					elif self.curr_sublane == 1:
+						traci.vehicle.changeLane(self.name, 2, 0.1)
+
+		if sumo_carfollow:
+
+				
+			if controller=='IDM':
+				T=1
+				a=1
+				b=1.5
+				delta=4
+				s0=2
+				time_delay=0.0
+				noise=0
+				if lead_info is None or lead_info == '':  # no car ahead
+					s_star=0
+
+				else:
+					s_star = 2+ max(
+						0, this_vel * T+ this_vel * (this_vel - lead_vel) /
+						(2 * np.sqrt(a*b)))
 
 
-		self.apply_acceleration(self.name,action[1])
+				acceleration=1 * (1 - (this_vel / target_speed)**delta - (s_star / headway)**s0)
 
+			if controller=='Gipps':
+				acc=1.5
+				tau=1
+				b=-1
+				b_l=-1
+				s0=2
+				tau=1
+				delay=0
+				noise=0
+				sim_step=0.1
+				v_acc = this_vel + (2.5 * acc * tau * (
+						1 - (this_vel / target_speed)) * np.sqrt(0.025 + (this_vel / target_speed)))
+
+				v_safe = (tau * b) + np.sqrt(((tau**2) * (b**2)) - (
+						b * ((2 * (-s0)) - (tau * this_vel) - ((lead_vel**2) /b_l))))
+
+				v_next = min(v_acc, v_safe, target_speed)
+
+				acceleration= (v_next-this_vel)/sim_step
+
+
+			self.apply_acceleration(self.name,acceleration)
+
+
+
+
+		else:	
+			self.apply_acceleration(self.name,action[1])
+
+		edge = self.curr_lane.split("_")[0]
+		# if slow_down:
+		lanes = [lane for lane in self.lane_ids if edge in lane]
+
+		if stop_and_go:
+			for lane in lanes:
+				# Get vehicles in the lane
+				vehicles = traci.lane.getLastStepVehicleIDs(lane)
+				for vehicle in vehicles:
+					if vehicle!=self.name:
+						info=self.get_vehicle_info(vehicle)
+						road=traci.vehicle.getRoadID(vehicle)
+						if road=='gneE6' and info[1]>5 :
+							self.apply_acceleration(vehicle,-3)
+		# 		if info[0]>0 and info[0]<50: ## travel distance in  between 50 to 150?
+		# 			self.apply_acceleration(vehicle,-1)
 		# Sim step
 		traci.simulationStep()
 		# action[0]=map_to_minus_zero_plus(action[0])
