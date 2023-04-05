@@ -230,7 +230,7 @@ class SumoEnv(gym.Env):
 			return np.array([dist, long_speed, acc, lat_pos])
 		
 		
-	def compute_reward(self, collision, action,reward_type='ye'):
+	def compute_reward(self, collision, action,reward_type='secrm'):
 		'''
 			Reward function is made of three elements:
 			 - Comfort 
@@ -241,7 +241,6 @@ class SumoEnv(gym.Env):
 		# Rewards Parameters
 		if reward_type=='ye':
 			alpha_comf = 0.1
-			w_lane = 0
 			w_speed = 5
 			w_change = 0
 			w_eff = 1
@@ -273,12 +272,33 @@ class SumoEnv(gym.Env):
 
 		if reward_type=='secrm':
 			alpha_comf = 0.1
-			w_lane = 0
 			w_speed = 5
 			w_change = 0
 			w_eff = 1
+			w_safe=0
+			
+			this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
+			info=[this_vel,target_speed,headway,lead_vel,lead_info]
+			controller=GippsController()
+			target_speed= controller.get_speed(info)
+			R_speed = -np.abs(this_vel - target_speed)
+			if action[0]!=0:
+				R_change = -1
+			else:
+				R_change = 0
+			# Eff
+			R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt not since it is not mandatory lane change
 
-		
+			if collision:
+				R_safe = -10
+			else:
+				R_safe = +1
+
+			R_safe=w_safe*R_safe
+			jerk = self.compute_jerk()
+			R_comf = -alpha_comf*jerk**2
+			R_tot = R_comf + R_eff + R_safe
+
 
 
 		return [R_tot, R_comf, R_eff, R_safe]
