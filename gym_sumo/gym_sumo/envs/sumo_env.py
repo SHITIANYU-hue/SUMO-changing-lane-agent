@@ -5,6 +5,7 @@ import numpy as np
 from scipy.spatial import distance
 from math import atan2, degrees
 from collections import deque
+from agents.controller import IDMController,GippsController
 import os
 
 # check lane change and speed mode params: https://github.com/flow-project/flow/blob/master/flow/core/params.py
@@ -229,7 +230,7 @@ class SumoEnv(gym.Env):
 			return np.array([dist, long_speed, acc, lat_pos])
 		
 		
-	def compute_reward(self, collision, action):
+	def compute_reward(self, collision, action,reward_type='ye'):
 		'''
 			Reward function is made of three elements:
 			 - Comfort 
@@ -238,36 +239,48 @@ class SumoEnv(gym.Env):
 			 Taken from Ye et al.
 		'''
 		# Rewards Parameters
-		alpha_comf = 0.1
-		w_lane = 0
-		w_speed = 3
-		w_change = 0
-		w_eff = 1
+		if reward_type=='ye':
+			alpha_comf = 0.1
+			w_lane = 0
+			w_speed = 5
+			w_change = 0
+			w_eff = 1
+			
+			# Comfort reward 
+			jerk = self.compute_jerk()
+			R_comf = -alpha_comf*jerk**2
+			action[0]=map_action(action[0])
+			#Efficiency reward
+			# Speed
+			R_speed = -np.abs(self.speed - self.target_speed)
+			# Penalty for changing lane
+			if action[0]!=0:
+				R_change = -1
+			else:
+				R_change = 0
+			# Eff
+			R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt not since it is not mandatory lane change
+			
+			# Safety Reward
+			# Just penalize collision for now
+			if collision:
+				R_safe = -10
+			else:
+				R_safe = +1
+			
+			# total reward
+			R_tot = R_comf + R_eff + R_safe
+
+		if reward_type=='secrm':
+			alpha_comf = 0.1
+			w_lane = 0
+			w_speed = 5
+			w_change = 0
+			w_eff = 1
+
 		
-		# Comfort reward 
-		jerk = self.compute_jerk()
-		R_comf = -alpha_comf*jerk**2
-		action[0]=map_action(action[0])
-		#Efficiency reward
-		# Speed
-		R_speed = -np.abs(self.speed - self.target_speed)
-		# Penalty for changing lane
-		if action[0]!=0:
-			R_change = -1
-		else:
-			R_change = 0
-		# Eff
-		R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt not since it is not mandatory lane change
-		
-		# Safety Reward
-		# Just penalize collision for now
-		if collision:
-			R_safe = -10
-		else:
-			R_safe = +1
-		
-		# total reward
-		R_tot = R_comf + R_eff + R_safe
+
+
 		return [R_tot, R_comf, R_eff, R_safe]
 		
 
@@ -282,6 +295,24 @@ class SumoEnv(gym.Env):
 		else:
 			traci.vehicle.setSpeed(vid, next_vel)
 
+	def get_ego_veh_info(self,name):
+		
+		lead_info = traci.vehicle.getLeader(name)
+		trail_info = traci.vehicle.getFollower(name)
+		this_vel=traci.vehicle.getSpeed(name)
+		target_speed=traci.vehicle.getAllowedSpeed(name)
+
+		if lead_info is None or lead_info == '':  # no car ahead
+			s_star=0
+			headway=999999
+			lead_vel=target_speed
+		else:
+			lead_id=traci.vehicle.getLeader(name)[0]
+			headway = traci.vehicle.getLeader(name)[1]
+			lead_vel=traci.vehicle.getSpeed(lead_id)
+
+		return this_vel,lead_vel,lead_info,headway,target_speed
+
 
 	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,controller='IDM'):
 		'''
@@ -294,19 +325,8 @@ class SumoEnv(gym.Env):
 		- return nextstate, reward and done
 		'''
 
-		lead_info = traci.vehicle.getLeader(self.name)
-		trail_info = traci.vehicle.getFollower(self.name)
-		this_vel=traci.vehicle.getSpeed(self.name)
-		target_speed=traci.vehicle.getAllowedSpeed(self.name)
+		this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
 
-		if lead_info is None or lead_info == '':  # no car ahead
-			s_star=0
-			headway=999999
-			lead_vel=target_speed
-		else:
-			lead_id=traci.vehicle.getLeader(self.name)[0]
-			headway = traci.vehicle.getLeader(self.name)[1]
-			lead_vel=traci.vehicle.getSpeed(lead_id)
 
 		if sumo_lc:
 			# 2^0: right neighbors (else: left)
@@ -349,43 +369,15 @@ class SumoEnv(gym.Env):
 
 				
 			if controller=='IDM':
-				T=1
-				a=1
-				b=1.5
-				delta=4
-				s0=2
-				time_delay=0.0
-				noise=0
-				if lead_info is None or lead_info == '':  # no car ahead
-					s_star=0
-
-				else:
-					s_star = 2+ max(
-						0, this_vel * T+ this_vel * (this_vel - lead_vel) /
-						(2 * np.sqrt(a*b)))
-
-
-				acceleration=1 * (1 - (this_vel / target_speed)**delta - (s_star / headway)**s0)
+				controller=IDMController()
+				info=[this_vel,target_speed,headway,lead_vel,lead_info]
+				acceleration= controller.get_accel(info)
 
 			if controller=='Gipps':
-				acc=1.5
-				tau=1
-				b=-1
-				b_l=-1
-				s0=2
-				tau=1
-				delay=0
-				noise=0
-				sim_step=0.1
-				v_acc = this_vel + (2.5 * acc * tau * (
-						1 - (this_vel / target_speed)) * np.sqrt(0.025 + (this_vel / target_speed)))
-
-				v_safe = (tau * b) + np.sqrt(((tau**2) * (b**2)) - (
-						b * ((2 * (-s0)) - (tau * this_vel) - ((lead_vel**2) /b_l))))
-
-				v_next = min(v_acc, v_safe, target_speed)
-
-				acceleration= (v_next-this_vel)/sim_step
+				controller=GippsController()
+				info=[this_vel,target_speed,headway,lead_vel,lead_info]
+				print('info',info)
+				acceleration= controller.get_accel(info)
 
 
 			self.apply_acceleration(self.name,acceleration)
