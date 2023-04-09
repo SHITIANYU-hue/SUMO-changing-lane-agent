@@ -126,7 +126,7 @@ class GippsController:
 
     def get_speed(self, info):
         """See parent class."""
-        this_vel,target_speed,headway,lead_vel,lead_info=info
+        this_vel,target_speed,lead_vel=info
 
         v_acc = this_vel + (2.5 * self.acc * self.tau * (
                 1 - (this_vel / target_speed)) * np.sqrt(0.025 + (this_vel / target_speed)))
@@ -134,6 +134,7 @@ class GippsController:
         v_safe = (self.tau * self.b) + np.sqrt(((self.tau**2) * (self.b**2)) - (
                self.b * ((2 * (-self.s0)) - (self.tau * this_vel) - ((lead_vel**2) /self.b_l))))
 
+        print('v acc',v_acc,'v safe',v_safe,'target',target_speed)
         v_next = min(v_acc, v_safe, target_speed)
 
 
@@ -141,7 +142,7 @@ class GippsController:
 
     def get_accel(self, info):
         """See parent class."""
-        this_vel,target_speed,headway,lead_vel,lead_info=info
+        this_vel,target_speed,lead_vel=info
         v_next=self.get_speed(info)
         acceleration= (v_next-this_vel)/self.sim_step
 
