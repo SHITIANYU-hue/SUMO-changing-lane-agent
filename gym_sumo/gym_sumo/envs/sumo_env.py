@@ -63,7 +63,7 @@ class SumoEnv(gym.Env):
 		self.curr_step = 0
 		self.collision = False
 		self.done = False
-		self.lane_change_model = 1621
+		self.lane_change_model = 0b00100000000 ## disable lane change
 
 		# Starting sumo
 		home = os.getenv("HOME")
@@ -122,7 +122,7 @@ class SumoEnv(gym.Env):
 
 
 	# Get grid like state
-	def get_grid_state(self, threshold_distance=10):
+	def get_grid_state(self, threshold_distance=20):
 		'''
 		Observation is a grid occupancy grid
 		'''
@@ -278,7 +278,7 @@ class SumoEnv(gym.Env):
 			w_safe=0
 			
 			this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
-			info=[this_vel,target_speed,headway,lead_vel,lead_info]
+			info=[this_vel,target_speed,lead_vel]
 			controller=GippsController()
 			target_speed= controller.get_speed(info)
 			R_speed = -np.abs(this_vel - target_speed)
@@ -322,10 +322,10 @@ class SumoEnv(gym.Env):
 		this_vel=traci.vehicle.getSpeed(name)
 		target_speed=traci.vehicle.getAllowedSpeed(name)
 
-		if lead_info is None or lead_info == '':  # no car ahead
+		if lead_info is None or lead_info == '' or lead_info[1]>5:  # no car ahead??
 			s_star=0
 			headway=999999
-			lead_vel=target_speed
+			lead_vel=99999
 		else:
 			lead_id=traci.vehicle.getLeader(name)[0]
 			headway = traci.vehicle.getLeader(name)[1]
@@ -333,8 +333,26 @@ class SumoEnv(gym.Env):
 
 		return this_vel,lead_vel,lead_info,headway,target_speed
 
+	def get_rela_ego_veh_info(self,name,veh_id):
+		
+		lead_info = traci.vehicle.getLeader(name)
+		trail_info = traci.vehicle.getFollower(name)
+		this_vel=traci.vehicle.getSpeed(name)
+		target_speed=traci.vehicle.getAllowedSpeed(name)
 
-	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,controller='IDM'):
+		if veh_id ==0:  # no car ahead
+			headway=999999
+			lead_vel=target_speed
+		else:
+			try:
+				lead_vel=traci.vehicle.getSpeed(veh_id) ##sometimes sumo can't find leader veh if it is too far?
+			except:
+				lead_vel=target_speed
+
+		return this_vel,target_speed,lead_vel
+
+
+	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,lane_change='SECRM',car_follow='gipps'):
 		'''
 		This will :
 		- send action, namely change lane or stay 
@@ -353,17 +371,90 @@ class SumoEnv(gym.Env):
 			# 2^1: neighbors ahead (else: behind)
 			# 2^2: only neighbors blocking a potential lane change (else: all)
 			# right: -1, left: 1. sublane-change within current lane: 0.
-			traci.vehicle.setLaneChangeMode(self.name,self.lane_change_model)
-			# neightbor_vehicle=traci.vehicle.getNeighbors(self.name,2^0)
-			if this_vel<lead_vel and lead_info is not None:
+			if lane_change=='random':
+				traci.vehicle.setLaneChangeMode(self.name,self.lane_change_model)
+				# neightbor_vehicle=traci.vehicle.getNeighbors(self.name,2^0)
+				if this_vel<lead_vel and lead_info is not None:
+					change_right=traci.vehicle.couldChangeLane(self.name,-1)
+					if change_right:
+						traci.vehicle.changeLane(self.name,1, 0.1)
+
+					change_left=traci.vehicle.couldChangeLane(self.name,1)
+					if change_left:
+						traci.vehicle.changeLane(self.name,2, 0.1)
+
+			if lane_change=='SECRM':
+
+				agent_lane = self.curr_lane
+				agent_pos = self.pos
+				edge = self.curr_lane.split("_")[0]
+				agent_lane_index = self.curr_sublane
+				lanes = [lane for lane in self.lane_ids if edge in lane]
+				controller=GippsController()
+				speed_n=self.target_speed
+				speed_s=self.target_speed
+				for lane in lanes:
+					vehicles = traci.lane.getLastStepVehicleIDs(lane)
+					veh_lane = int(lane.split("_")[-1])
+					agent_pos = self.pos
+					for vehicle in vehicles:
+						if vehicle == self.name:
+							continue
+						rl_angle = traci.vehicle.getAngle(self.name)
+						veh_pos = traci.vehicle.getPosition(vehicle)
+						veh_id = vehicle.split("_")[1]
+						angle = angle_between(agent_pos, veh_pos, rl_angle)
+						# Putting on the right north
+						if angle >= 22.5 and angle < 67.5:
+							info_n=self.get_rela_ego_veh_info(self.name,veh_id)
+							speed_n= controller.get_speed(info_n)
+						# Putting on the right south
+						if angle >= 292.5 and angle < 337.5:
+							info_s=self.get_rela_ego_veh_info(self.name,veh_id)
+							speed_s= controller.get_speed(info_s)
+
+				lead_info=traci.vehicle.getLeader(self.name)
+				if lead_info is None or lead_info == '' or lead_info[1]>30:  # no car ahead
+					lead_id=0
+				else:
+					lead_id=lead_info[0]
+				info_e=self.get_rela_ego_veh_info(self.name,lead_id)
+				speed_e= controller.get_speed(info_e)
+				
+
 				change_right=traci.vehicle.couldChangeLane(self.name,-1)
-				if change_right:
-					traci.vehicle.changeLane(self.name,1, 0.1)
-
 				change_left=traci.vehicle.couldChangeLane(self.name,1)
-				if change_left:
-					traci.vehicle.changeLane(self.name,2, 0.1)
 
+
+				print('ego speed',speed_e,'north speed',speed_n,'speed_s',speed_s)
+				print('change right',change_right,'change left',change_left)
+
+				if speed_n>speed_e and speed_n >speed_s and change_left:
+					action[0]=2
+				if speed_s>speed_e and speed_s > speed_n and change_right:
+					action[0]=1
+				if abs(speed_n-speed_s)<2 and min(speed_n,speed_s)>speed_e:
+					if change_right==True and change_left==False:
+						action[0]=1
+					if change_left ==True and change_right==False:
+						action[0]=2
+					if change_left ==True and change_right==True:
+						action[0]=1
+
+				print('lane decision',action[0])
+
+				if action[0] == 1:
+					print('change right !!')
+					if self.curr_sublane == 1:
+						traci.vehicle.changeLane(self.name, 0, 0.1)
+					elif self.curr_sublane == 2:
+						traci.vehicle.changeLane(self.name, 1, 0.1)
+				if action[0] == 2:
+					print('change left !!')
+					if self.curr_sublane == 0:
+						traci.vehicle.changeLane(self.name, 1, 0.1)
+					elif self.curr_sublane == 1:
+						traci.vehicle.changeLane(self.name, 2, 0.1)
 
 
 
@@ -387,19 +478,17 @@ class SumoEnv(gym.Env):
 
 		if sumo_carfollow:
 
-				
-			if controller=='IDM':
+			if car_follow=='IDM':
 				controller=IDMController()
 				info=[this_vel,target_speed,headway,lead_vel,lead_info]
 				acceleration= controller.get_accel(info)
 
-			if controller=='Gipps':
+			if car_follow=='Gipps':
 				controller=GippsController()
-				info=[this_vel,target_speed,headway,lead_vel,lead_info]
-				print('info',info)
+				info=[this_vel,target_speed,lead_vel]
 				acceleration= controller.get_accel(info)
 
-
+			action[1]=acceleration
 			self.apply_acceleration(self.name,acceleration)
 
 
@@ -420,7 +509,7 @@ class SumoEnv(gym.Env):
 					if vehicle!=self.name:
 						info=self.get_vehicle_info(vehicle)
 						road=traci.vehicle.getRoadID(vehicle)
-						if road=='gneE6' and info[1]>5 :
+						if road=='gneE6' and info[1]>3 :
 							self.apply_acceleration(vehicle,-3)
 		# 		if info[0]>0 and info[0]<50: ## travel distance in  between 50 to 150?
 		# 			self.apply_acceleration(vehicle,-1)
