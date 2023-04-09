@@ -70,14 +70,8 @@ avg_scors=[]
 
 if agent_args.on_policy == True:
     score = 0.0
-    state = env.reset(gui=True, numVehicles=15)
+    state = env.reset(gui=args.render, numVehicles=25)
     # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
     for n_epi in range(args.epochs):
         for t in range(agent_args.traj_length):
-            # print('t',t)
-            if t%3==0:
-                change=1
-            if t%2==0:
-                change=2
-            action=[change,3]
-            next_state_, reward_info, done, info = env.step(action)
+            next_state_, reward_info, done, info = env.step([0,1],sumo_lc=True,sumo_carfollow=True,stop_and_go=True,car_follow='Gipps',lane_change='SECRM')
