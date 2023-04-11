@@ -69,9 +69,9 @@ class SumoEnv(gym.Env):
 		home = os.getenv("HOME")
 
 		if self.gui:
-			sumoBinary = home + "/code/sumo-1.8.0/bin/sumo-gui"
+			sumoBinary = home + "/code/sumo/bin/sumo-gui"
 		else:
-			sumoBinary = home + "/code/sumo-1.8.0/bin/sumo"
+			sumoBinary = home + "/code/sumo/bin/sumo"
 		sumoCmd = [sumoBinary, "-c", self.network_conf, "--no-step-log", "true", "-W"]
 		traci.start(sumoCmd)
 
@@ -335,9 +335,6 @@ class SumoEnv(gym.Env):
 
 	def get_rela_ego_veh_info(self,name,veh_id):
 		
-		lead_info = traci.vehicle.getLeader(name)
-		trail_info = traci.vehicle.getFollower(name)
-		this_vel=traci.vehicle.getSpeed(name)
 		target_speed=traci.vehicle.getAllowedSpeed(name)
 
 		if veh_id ==0:  # no car ahead
@@ -349,7 +346,7 @@ class SumoEnv(gym.Env):
 			except:
 				lead_vel=target_speed
 
-		return this_vel,target_speed,lead_vel
+		return [target_speed,lead_vel]
 
 
 	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,lane_change='SECRM',car_follow='gipps'):
@@ -385,40 +382,37 @@ class SumoEnv(gym.Env):
 
 			if lane_change=='SECRM':
 
-				agent_lane = self.curr_lane
-				agent_pos = self.pos
-				edge = self.curr_lane.split("_")[0]
-				agent_lane_index = self.curr_sublane
-				lanes = [lane for lane in self.lane_ids if edge in lane]
 				controller=GippsController()
-				speed_n=self.target_speed
-				speed_s=self.target_speed
-				for lane in lanes:
-					vehicles = traci.lane.getLastStepVehicleIDs(lane)
-					veh_lane = int(lane.split("_")[-1])
-					agent_pos = self.pos
-					for vehicle in vehicles:
-						if vehicle == self.name:
-							continue
-						rl_angle = traci.vehicle.getAngle(self.name)
-						veh_pos = traci.vehicle.getPosition(vehicle)
-						veh_id = vehicle.split("_")[1]
-						angle = angle_between(agent_pos, veh_pos, rl_angle)
-						# Putting on the right north
-						if angle >= 22.5 and angle < 67.5:
-							info_n=self.get_rela_ego_veh_info(self.name,veh_id)
-							speed_n= controller.get_speed(info_n)
-						# Putting on the right south
-						if angle >= 292.5 and angle < 337.5:
-							info_s=self.get_rela_ego_veh_info(self.name,veh_id)
-							speed_s= controller.get_speed(info_s)
-
+				lead_left= traci.vehicle.getNeighbors(self.name,'010')
+				lead_right=traci.vehicle.getNeighbors(self.name,'011')
 				lead_info=traci.vehicle.getLeader(self.name)
+				this_vel=traci.vehicle.getSpeed(self.name)
+
+				if lead_left is None or len(lead_left) == 0:  # no car ahead
+					lead_id=0
+					lead_vel=self.target_speed
+				else:
+					lead_id=lead_left[0][0]
+					lead_vel=traci.vehicle.getSpeed(lead_id)
+				info_n=[self.target_speed,lead_vel,this_vel]
+				speed_n= controller.get_speed(info_n)
+
+				if lead_right is None or len(lead_right) == 0 :  # no car ahead
+					lead_id=0
+					lead_vel=self.target_speed
+				else:
+					lead_id=lead_right[0][0]
+					lead_vel=traci.vehicle.getSpeed(lead_id)
+				info_s=[self.target_speed,lead_vel,this_vel]
+				speed_s= controller.get_speed(info_s)
+
 				if lead_info is None or lead_info == '' or lead_info[1]>30:  # no car ahead
 					lead_id=0
+					lead_vel=self.target_speed
 				else:
 					lead_id=lead_info[0]
-				info_e=self.get_rela_ego_veh_info(self.name,lead_id)
+					lead_vel=traci.vehicle.getSpeed(lead_id)
+				info_e=[self.target_speed,lead_vel,this_vel]
 				speed_e= controller.get_speed(info_e)
 				
 
@@ -426,14 +420,15 @@ class SumoEnv(gym.Env):
 				change_left=traci.vehicle.couldChangeLane(self.name,1)
 
 
-				print('ego speed',speed_e,'north speed',speed_n,'speed_s',speed_s)
+				print('ego secrm speed',speed_e,'north secrm speed',speed_n,'south secrm speed',speed_s)
+				print('ego veh speed:', this_vel)
 				print('change right',change_right,'change left',change_left)
 
 				if speed_n>speed_e and speed_n >speed_s and change_left:
 					action[0]=2
 				if speed_s>speed_e and speed_s > speed_n and change_right:
 					action[0]=1
-				if abs(speed_n-speed_s)<2 and min(speed_n,speed_s)>speed_e:
+				if abs(speed_n-speed_s)<100 and min(speed_n,speed_s)>speed_e:
 					if change_right==True and change_left==False:
 						action[0]=1
 					if change_left ==True and change_right==False:
@@ -485,7 +480,7 @@ class SumoEnv(gym.Env):
 
 			if car_follow=='Gipps':
 				controller=GippsController()
-				info=[this_vel,target_speed,lead_vel]
+				info=[target_speed,lead_vel,this_vel]
 				acceleration= controller.get_accel(info)
 
 			action[1]=acceleration
