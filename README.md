@@ -7,10 +7,7 @@ The project aims at developing a reinforcement learning application to make an a
 
 
 ## Installation
-First install SUMO and then the required packages from requirements.txt
-
-## More Details 
-I wrote a report about this. You can find it inside report folder
+First install SUMO and then the required packages from requirements.txt or environment.yml
 
 
 ## others
@@ -18,6 +15,6 @@ main.py to train model
 
 test.py to test model
 
-main_step.py to check with environment setup and visualization
+main_step.py to check with environment setup and visualization, which include different lane change controller or car following controller
 
 modified based on this repo: https://github.com/seolhokim/Mujoco-Pytorch 
