@@ -8,3 +8,4 @@ gym_sumo.egg-info/requires.txt
 gym_sumo.egg-info/top_level.txt
 gym_sumo/envs/__init__.py
 gym_sumo/envs/sumo_env.py
+gym_sumo/envs/sumo_env_qew.py

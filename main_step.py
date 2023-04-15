@@ -16,11 +16,11 @@ os.makedirs('./model_weights', exist_ok=True)
 
 parser = ArgumentParser('parameters')
 
-parser.add_argument("--env_name", type=str, default ='gym_sumo-v0')
+parser.add_argument("--env_name", type=str, default ='gym_sumo-v1')
 parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to adjust (default : ppo)')
 parser.add_argument('--train', type=bool, default=True, help="(default: True)")
 parser.add_argument('--render', type=bool, default=False, help="(default: False)")
-parser.add_argument('--epochs', type=int, default=1000, help='number of epochs, (default: 1000)')
+parser.add_argument('--epochs', type=int, default=1, help='number of epochs, (default: 1000)')
 parser.add_argument('--tensorboard', type=bool, default=False, help='use_tensorboard, (default: False)')
 parser.add_argument("--load", type=str, default = 'no', help = 'load network name in ./model_weights')
 parser.add_argument("--save_interval", type=int, default = 100, help = 'save interval(default: 100)')
@@ -48,21 +48,9 @@ state_dim = 37
 state_rms = RunningMeanStd(state_dim)
 
 
-if args.algo == 'ppo' :
-    agent = PPO(writer, device, state_dim, action_dim, agent_args)
-elif args.algo == 'sac' :
-    agent = SAC(writer, device, state_dim, action_dim, agent_args)
-elif args.algo == 'ddpg' :
-    from utils.noise import OUNoise
-    noise = OUNoise(action_dim,0)
-    agent = DDPG(writer, device, state_dim, action_dim, agent_args, noise)
 
-    
-if (torch.cuda.is_available()) and (args.use_cuda):
-    agent = agent.cuda()
 
-if args.load != 'no':
-    agent.load_state_dict(torch.load("./model_weights/"+args.load))
+
     
 score_lst = []
 state_lst = []
@@ -70,8 +58,11 @@ avg_scors=[]
 
 if agent_args.on_policy == True:
     score = 0.0
-    state = env.reset(gui=args.render, numVehicles=25)
     # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
     for n_epi in range(args.epochs):
+        state = env.reset(gui=args.render, numVehicles=25)
         for t in range(agent_args.traj_length):
             next_state_, reward_info, done, info = env.step([0,1],sumo_lc=True,sumo_carfollow=True,stop_and_go=True,car_follow='Gipps',lane_change='SECRM')
+            if done:
+                print('rl vehicle run out of network!!')
+                break
