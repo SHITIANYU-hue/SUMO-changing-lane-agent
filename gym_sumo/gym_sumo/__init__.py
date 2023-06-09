@@ -17,3 +17,9 @@ register(
     id='gym_sumo-v2',
     entry_point='gym_sumo.envs:SumoEnv_exit',
 )
+
+
+register(
+    id='gym_sumo-v3',
+    entry_point='gym_sumo.envs:SumoEnv_multi',
+)
