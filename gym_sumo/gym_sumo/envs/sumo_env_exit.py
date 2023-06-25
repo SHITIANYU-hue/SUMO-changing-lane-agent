@@ -7,6 +7,7 @@ from math import atan2, degrees
 from collections import deque
 from agents.controller import IDMController,GippsController
 import os
+import math
 
 # check lane change and speed mode params: https://github.com/flow-project/flow/blob/master/flow/core/params.py
 
@@ -35,6 +36,9 @@ class SumoEnv_exit(gym.Env):
 		self.step_length = 0.4
 		self.acc_history = deque([0, 0], maxlen=2)
 		self.grid_state_dim = 4
+		self.veh_num_dim=28
+		self.state_info_dim=5
+		self.scan_range=500
 		self.state_dim = (4*self.grid_state_dim*self.grid_state_dim)+1 # 5 info for the agent, 4 for everybody else
 		self.pos = (0, 0)
 		self.curr_lane = ''
@@ -84,7 +88,7 @@ class SumoEnv_exit(gym.Env):
 			traci.vehicle.add(veh_name, routeID='route_0', typeID=self.vType, departLane='random',departSpeed='10')
 			if i ==(self.numVehicles-3):
 				# print('add rl')
-				traci.vehicle.add(self.name, routeID='route_1', typeID='rl', departLane='2',departSpeed='10')
+				traci.vehicle.add(self.name, routeID='route_1', typeID='rl', departLane='0',departSpeed='10')
 
 		# 	# Lane change model comes from bit set 100010101010
 		# 	# Go here to find out what does it mean
@@ -183,7 +187,99 @@ class SumoEnv_exit(gym.Env):
 		# Since the 0 lane is the right most one, flip 
 		state = np.fliplr(state)
 		return state
-		
+
+	# Get N front, M back on each lane
+	def get_lane_grid_state(self, threshold_distance=10):
+		'''
+		Observation is a grid occupancy grid
+		'''
+		agent_lane = self.curr_lane
+		agent_pos = self.pos
+		edge = self.curr_lane.split("_")[0]
+		agent_lane_index = self.curr_sublane
+		lanes = [lane for lane in self.lane_ids if edge in lane]
+		state = np.zeros([self.veh_num_dim, self.state_info_dim])
+		# get nearest follower and leader information
+		veh_ids=()
+		for lane in lanes:
+				# Get vehicles in the lane
+				vehicles = traci.lane.getLastStepVehicleIDs(lane)
+				veh_ids=vehicles+veh_ids
+		lat_pos_e, long_pos_e = traci.vehicle.getPosition(self.name)
+		lane_pos_e=traci.vehicle.getLanePosition(self.name)
+		distances={}
+		distances_={}
+		for veh in veh_ids:
+			lat_pos, long_pos = traci.vehicle.getPosition(veh)
+			distance=math.sqrt((lat_pos_e - lat_pos)**2 + (long_pos_e - long_pos)**2)
+			lane_pos=traci.vehicle.getLanePosition(veh)
+			if distance<self.scan_range:
+				distances[veh]=distance
+		sorted_distances = sorted(distances.items(), key=lambda x: x[1])
+		vehicle_names = [item[0] for item in sorted_distances]
+		counted_names=[]
+		for lane in lanes:
+			front=0
+			back=0
+			search_name = [x for x in vehicle_names if x not in counted_names]
+			for veh in search_name:
+				current_lane=traci.vehicle.getLaneID(veh)
+				if current_lane == lane:
+					lane_pos=traci.vehicle.getLanePosition(veh)
+					if lane_pos>lane_pos_e and front<=5:
+						front+=1
+						distances_[veh]=distance
+					if lane_pos<=lane_pos_e and back<=2:
+						back+=1
+						distances_[veh]=distance
+					counted_names.append(veh)
+		sorted_distances = sorted(distances_.items(), key=lambda x: x[1])
+		vehicle_names = [item[0] for item in sorted_distances]
+		for index, veh in enumerate(vehicle_names):
+			info=self.get_vehicle_info(veh)
+			state[index]=info
+
+		return state
+
+
+	# Get N closest vehicles within scan range
+	def get_scan_range_state(self, threshold_distance=10):
+		'''
+		Observation is a grid occupancy grid
+		'''
+		agent_lane = self.curr_lane
+		agent_pos = self.pos
+		edge = self.curr_lane.split("_")[0]
+		agent_lane_index = self.curr_sublane
+		lanes = [lane for lane in self.lane_ids if edge in lane]
+		state = np.zeros([self.veh_num_dim, self.state_info_dim])
+		# get nearest follower and leader information
+		veh_ids=()
+		for lane in lanes:
+				# Get vehicles in the lane
+				vehicles = traci.lane.getLastStepVehicleIDs(lane)
+				veh_ids=vehicles+veh_ids
+		lat_pos_e, long_pos_e = traci.vehicle.getPosition(self.name)
+		distances={}
+		for veh in veh_ids:
+			lat_pos, long_pos = traci.vehicle.getPosition(veh)
+			distance=math.sqrt((lat_pos_e - lat_pos)**2 + (long_pos_e - long_pos)**2)
+			lane_pos=traci.vehicle.getLanePosition(veh)
+			if distance<self.scan_range:
+				distances[veh]=distance
+
+		sorted_distances = sorted(distances.items(), key=lambda x: x[1])
+		vehicle_names = [item[0] for item in sorted_distances]
+		sorted_distances = sorted(distances.items(), key=lambda x: x[1])
+		vehicle_names = [item[0] for item in sorted_distances]
+		if len(vehicle_names)>self.veh_num_dim:
+			vehicle_names=vehicle_names[0:self.veh_num_dim]
+		for index, veh in enumerate(vehicle_names):
+			info=self.get_vehicle_info(veh)
+			state[index]=info
+
+		return state
+
 	def compute_jerk(self):
 		return (self.acc_history[1] - self.acc_history[0])/self.step_length
 
@@ -199,27 +295,9 @@ class SumoEnv_exit(gym.Env):
 		'''
 		Define a state as a vector of vehicles information
 		'''
-		state = np.zeros(self.state_dim)
-		before = 0
-		grid_state = self.get_grid_state().flatten()
-		for num, vehicle in enumerate(grid_state):
-			if vehicle == 0:
-				continue
-			if vehicle == -1:
-				vehicle_name = self.name
-				before = 1
-			else:
-				vehicle_name = 'vehicle_'+(str(int(vehicle)))
-			try:
-				veh_info = self.get_vehicle_info(vehicle_name)
-			except:
-				veh_info= self.get_vehicle_info(self.name)
-			idx_init = num*4
-			if before and vehicle != -1:
-				idx_init += 1
-			idx_fin = idx_init + veh_info.shape[0]
-			state[idx_init:idx_fin] = veh_info
-		state = np.squeeze(state)
+		state=self.get_lane_grid_state()
+		# state=self.get_scan_range_state()
+
 		return state
 	
 	
@@ -235,7 +313,7 @@ class SumoEnv_exit(gym.Env):
 			acc = traci.vehicle.getAcceleration(vehicle_name)
 			dist = get_distance(self.pos, (lat_pos, long_pos))
 			lane=traci.vehicle.getLaneIndex(vehicle_name)
-			return np.array([dist, long_speed, acc, lat_pos])
+			return np.array([dist, long_speed, acc, lat_pos,lane])
 		
 		
 	def compute_reward(self, collision, action,reward_type='secrm'):
@@ -284,7 +362,7 @@ class SumoEnv_exit(gym.Env):
 			w_change = 0
 			w_eff = 1
 			w_safe=0
-			
+			R_exit=0
 			this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
 			info=[this_vel,target_speed,lead_vel]
 			controller=GippsController()
@@ -301,15 +379,20 @@ class SumoEnv_exit(gym.Env):
 				R_safe = -10
 			else:
 				R_safe = +1
-
+			distance2=abs(traci.vehicle.getDrivingDistance(self.name,'9781',0))
+			sublane=self.curr_lane.split("_")[-1]
+			if distance2<10737418:
+				exit_dis=distance2
+			else:
+				exit_dis=0
+			if sublane=='3' or sublane=='2':
+				R_exit=-1/exit_dis
 			R_safe=w_safe*R_safe
 			jerk = self.compute_jerk()
 			R_comf = -alpha_comf*jerk**2
-			R_tot = R_comf + R_eff + R_safe
-
-
-
-		return [R_tot, R_comf, R_eff, R_safe]
+			R_tot = R_comf + R_eff + R_safe+R_exit
+			
+		return [R_tot, R_comf, R_eff, R_safe,R_exit]
 		
 
 	def apply_acceleration(self, vid, acc, smooth=True):
@@ -368,7 +451,6 @@ class SumoEnv_exit(gym.Env):
 		- compute nextstate
 		- return nextstate, reward and done
 		'''
-
 		this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
 		# if traci.vehicle.getRoadID(self.name)=='9778':
 		# 	print('switch route')
@@ -382,11 +464,11 @@ class SumoEnv_exit(gym.Env):
 		edge=self.curr_lane.split("_")[0]
 		sublane=self.curr_lane.split("_")[-1]
 		# distance=traci.vehicle.getDistance(self.name)
-		distance2=abs(traci.vehicle.getDrivingDistance(self.name,'9781',0))
-		# print('edge',edge)
+		distance2=abs(traci.vehicle.getDrivingDistance(self.name,'9778',0))
+		# print('current lane ',self.curr_lane)
 		if edge == exit_edge:
 			distance2 = abs(traci.vehicle.getDrivingDistance(self.name, '9781' ,0))
-			if (sublane == '2' or sublane == '3') and (this_vel*1 > distance2):
+			if (sublane == '2' or sublane == '3' or sublane =='1') and (this_vel*1 > distance2) and action[0]!=1: ## if sublane is equal to 1 the agent still will fail
 				print('switch route')
 				traci.vehicle.setRouteID(self.name, 'route_2')
 				
@@ -484,21 +566,15 @@ class SumoEnv_exit(gym.Env):
 
 		# Action legend : 0 stay, 1 change to right, 2 change to left
 		else:
-			action[0]=map_action(action[0])
-			# action[1]=max(max_dec, min(action[1], max_acc))
-			if self.curr_lane[0] == 'e':
-				action[0] = 0
-			if action[0] != 0:
-				if action[0] == 1:
-					if self.curr_sublane == 1:
-						traci.vehicle.changeLane(self.name, 0, 0.1)
-					elif self.curr_sublane == 2:
-						traci.vehicle.changeLane(self.name, 1, 0.1)
-				if action[0] == 2:
-					if self.curr_sublane == 0:
-						traci.vehicle.changeLane(self.name, 1, 0.1)
-					elif self.curr_sublane == 1:
-						traci.vehicle.changeLane(self.name, 2, 0.1)
+			# action[0]=map_action(action[0])
+			print('action',action[0])
+
+			if action[0] == 0:
+				traci.vehicle.changeLaneRelative(self.name,0,0.1)
+			if action[0] == 1:
+				traci.vehicle.changeLaneRelative(self.name,-1,0.1)
+			if action[0] == 2:
+				traci.vehicle.changeLaneRelative(self.name,1,0.1)
 
 		if sumo_carfollow:
 
