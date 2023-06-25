@@ -48,11 +48,6 @@ action_dim = 2
 state_dim = 37
 state_rms = RunningMeanStd(state_dim)
 
-
-
-
-
-    
 score_lst = []
 state_lst = []
 avg_scors=[]
