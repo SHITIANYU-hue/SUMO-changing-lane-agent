@@ -280,6 +280,40 @@ class SumoEnv_exit(gym.Env):
 
 		return state
 
+
+	def get_vector_image_representation(self, scan_range=10, num_cells=10):
+		agent_lane = self.curr_lane
+		agent_pos = self.pos
+		edge = self.curr_lane.split("_")[0]
+		agent_lane_index = self.curr_sublane
+		lanes = [lane for lane in self.lane_ids if edge in lane]
+
+		# Initialize the vector image representation
+		vector_image = np.zeros((len(lanes), num_cells, 3))
+
+		for l_idx, lane in enumerate(lanes):
+			veh_ids = traci.lane.getLastStepVehicleIDs(lane)
+
+			for veh in veh_ids:
+				veh_lane_pos = traci.vehicle.getLanePosition(veh)
+				veh_distance = abs(veh_lane_pos - agent_pos)
+
+				if veh_distance <= scan_range:
+					cell_idx = int(veh_distance / (scan_range / num_cells))
+
+					# Collect vehicle presence, speed, and acceleration
+					vehicle_presence = 1.0
+					vehicle_speed = traci.vehicle.getSpeed(veh)
+					vehicle_acceleration = traci.vehicle.getAcceleration(veh)
+
+					# Update the vector image representation
+					vector_image[l_idx, cell_idx, 0] = vehicle_presence
+					vector_image[l_idx, cell_idx, 1] = vehicle_speed
+					vector_image[l_idx, cell_idx, 2] = vehicle_acceleration
+
+		return vector_image
+
+
 	def compute_jerk(self):
 		return (self.acc_history[1] - self.acc_history[0])/self.step_length
 
