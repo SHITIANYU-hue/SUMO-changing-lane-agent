@@ -1,12 +1,13 @@
 from configparser import ConfigParser
 from argparse import ArgumentParser
+import traci
 
 import torch
 import gym
 import numpy as np
 import os
 import gym_sumo
-
+import random
 from agents.ppo import PPO
 from agents.sac import SAC
 from agents.ddpg import DDPG
@@ -56,13 +57,54 @@ state_rms = RunningMeanStd(state_dim)
 score_lst = []
 state_lst = []
 avg_scors=[]
-
+pre_step=20
 score = 0.0
 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
 for n_epi in range(args.epochs):
-    state = env.reset(gui=args.render, numVehicles=25)
+                
+
+
+    state = env.reset(gui=args.render, numVehicles=0)
+    veh_name = 'vehicleg_'
+    veh_name2 = 'vehicleg2_' 
+    veh_name3 = 'vehcleg3_'
+    H=40
+    distance=60
+    departspeed=10
+    for i in range(pre_step):
+        if i %2==0:
+            veh_name2_=veh_name2+str(i)
+            veh_name_=veh_name3+str(i)
+            traci.vehicle.add(veh_name2_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=0,departSpeed=departspeed)
+            traci.vehicle.setSpeedMode(veh_name2_, 10)
+            traci.vehicle.setLaneChangeMode(veh_name2_,0b001000000000)
+
+            traci.vehicle.add(veh_name_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=2,departSpeed=departspeed)
+            traci.vehicle.setSpeedMode(veh_name_, 10)
+            traci.vehicle.setLaneChangeMode(veh_name_,0b001000000000)
+
+
+        else:
+            veh_name3_=veh_name3+str(i)
+            traci.vehicle.add(veh_name3_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=1,departSpeed=departspeed)
+            traci.vehicle.setSpeedMode(veh_name3_, 10)
+            traci.vehicle.setLaneChangeMode(veh_name3_,0b001000000000)
+
+
     for t in range(args.horizon):
-        next_state_, reward_info, done, info = env.step([2,-3],sumo_lc=False,sumo_carfollow=True,stop_and_go=False,car_follow='Gipps',lane_change='SECRM')
-        if done:
-            print('rl vehicle run out of network!!')
-            break
+        print('step',t)
+        lane=0
+        # if t==102:
+        #     lane=2
+        next_state_, reward_info, done, info = env.step([lane,0],sumo_lc=True,sumo_carfollow=True,stop_and_go=False,car_follow='Gipps',lane_change='SECRM')
+        # print('reward',reward_info)
+        distance=traci.vehicle.getDistance('rlagent')
+        print(distance)
+        # if t %5 ==0:
+
+
+
+        # print('state',next_state_)
+        # if done:
+        #     print('rl vehicle run out of network!!')
+        #     break
