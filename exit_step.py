@@ -68,26 +68,35 @@ for n_epi in range(args.epochs):
     veh_name = 'vehicleg_'
     veh_name2 = 'vehicleg2_' 
     veh_name3 = 'vehcleg3_'
-    H=40
+    veh_name4 = 'vehcleg4_'
+
+    H=20 ## problem is it will stuck in the middle, need to investigate when will it swtich lane
     distance=60
+    distance2=70
     departspeed=10
+
     for i in range(pre_step):
         if i %2==0:
             veh_name2_=veh_name2+str(i)
             veh_name_=veh_name3+str(i)
+            veh_name4_=veh_name4+str(i)
+
+            # traci.vehicle.add(veh_name4_, routeID='route_1', typeID='human', departPos=i*H+distance2, departLane=0,departSpeed=departspeed)
+            # traci.vehicle.setSpeedMode(veh_name4_, departspeed)
+            # traci.vehicle.setLaneChangeMode(veh_name4_,0b001000000000)
+
             traci.vehicle.add(veh_name2_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=0,departSpeed=departspeed)
-            traci.vehicle.setSpeedMode(veh_name2_, 10)
+            traci.vehicle.setSpeedMode(veh_name2_, departspeed)
             traci.vehicle.setLaneChangeMode(veh_name2_,0b001000000000)
 
             traci.vehicle.add(veh_name_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=2,departSpeed=departspeed)
-            traci.vehicle.setSpeedMode(veh_name_, 10)
+            traci.vehicle.setSpeedMode(veh_name_, departspeed)
             traci.vehicle.setLaneChangeMode(veh_name_,0b001000000000)
-
 
         else:
             veh_name3_=veh_name3+str(i)
             traci.vehicle.add(veh_name3_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=1,departSpeed=departspeed)
-            traci.vehicle.setSpeedMode(veh_name3_, 10)
+            traci.vehicle.setSpeedMode(veh_name3_, departspeed)
             traci.vehicle.setLaneChangeMode(veh_name3_,0b001000000000)
 
 
