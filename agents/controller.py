@@ -40,10 +40,10 @@ class IDMController:
     """
 
     def __init__(self,
-                 T=1,
-                 a=1,
+                 T=0.1,
+                 a=5,
                  b=1.5,
-                 delta=4,
+                 delta=2,
                  s0=2):
         """Instantiate an IDM controller."""
         self.T = T
@@ -106,13 +106,11 @@ class GippsController:
 
     def __init__(self,
                  v0=30,
-                 acc=1.5,
-                 b=-1,
+                 acc=1.5, ## 增加这个参数一定程度可以优化jerk，同时会一定程度削弱eff，但是效果不是很明显
+                 b=-1, ## 增加这个参数（如-1到-3）会导致其急停，进而导致削弱eff，此外会增加collision rate
                  b_l=-1,
                  s0=2,
-                 tau=0.1,
-                 delay=0,
-                 noise=0,
+                 tau=0.1,#把这个参数改到了1之后更容易发生碰撞了
                  sim_step=0.1):
         """Instantiate a Gipps' controller."""
 
@@ -126,24 +124,25 @@ class GippsController:
 
     def get_speed(self, info):
         """See parent class."""
-        target_speed,lead_vel,this_vel=info
+        target_speed,lead_vel,headway,this_vel=info
 
         v_acc = this_vel + (2.5 * self.acc * self.tau * (
                 1 - (this_vel / target_speed)) * np.sqrt(0.025 + (this_vel / target_speed)))
 
         v_safe = (self.tau * self.b) + np.sqrt(((self.tau**2) * (self.b**2)) - (
-               self.b * ((2 * (-self.s0)) - (self.tau * this_vel) - ((lead_vel**2) /self.b_l))))
+               self.b * ((2 * (headway-self.s0)) - (self.tau * this_vel) - ((lead_vel**2) /self.b_l))))
 
         # print('v acc',v_acc,'v safe',v_safe,'target',target_speed)
         v_next = min(v_acc, v_safe, target_speed)
+        # v_next = min(v_acc, target_speed)
 
 
         return v_next
 
     def get_accel(self, info):
         """See parent class."""
-        target_speed,lead_vel,this_vel=info
-        v_next=self.get_speed(info)
+        target_speed,lead_vel,this_vel,v_next =info
+        # v_next=self.get_speed(info)
         acceleration= (v_next-this_vel)/self.sim_step
 
         return acceleration
