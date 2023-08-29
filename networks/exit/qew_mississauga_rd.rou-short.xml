@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on Tue 23 May 2023 10:55:39 PM by Eclipse SUMO netedit Version v1_8_0+1878-9c33583f10
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <input>
+        <sumo-net-file value="qew_mississauga_rd.net.xml"/>
+    </input>
+
+    <output>
+        <output-file value="qew_mississauga_rd.net.xml"/>
+    </output>
+
+    <processing>
+        <geometry.min-radius.fix.railways value="false"/>
+        <geometry.max-grade.fix value="false"/>
+        <offset.disable-normalization value="true"/>
+        <lefthand value="false"/>
+    </processing>
+
+    <junctions>
+        <no-turnarounds value="true"/>
+        <junctions.corner-detail value="0"/>
+        <junctions.limit-turn-speed value="-1"/>
+        <rectangular-lane-cut value="false"/>
+    </junctions>
+
+    <pedestrian>
+        <walkingareas value="false"/>
+    </pedestrian>
+
+    <netedit>
+        <route-files value="/home/ilia/Programming/sow45_code/wolf/networks/sumo/qew/qew_mississauga_rd.rou.xml"/>
+    </netedit>
+
+    <report>
+        <aggregate-warnings value="5"/>
+    </report>
+
+</configuration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <route edges="9575 9775 9778 9783 9786 9820 9832 9712 9728 9764 9605 9606 9650 9685 9695 9578 " color="yellow" id="route_0"/> 
+    <route edges="9775 9778 9781 9781.290 " color="yellow" id="route_3"/> 
+    <route edges="9575 9775 9778 9781 9781.290" color="yellow" id="route_1"/>
+    <route edges="9778 9783 " color="yellow" id="route_2"/>
+    <vType id="human" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="15" minGap="0" laneChangeModel="SL2015" guiShape='passenger/wagon' color='0,1,0'/>
+    <vType id="exit_human" accel="10" decel="4.5" sigma="0.5" length="5" maxSpeed="20" minGap="0" laneChangeModel="SL2015" guiShape='passenger/wagon' color='0,1,0'/>
+    <flow id="flow_0" begin="0" end="3600" vehsPerHour="10000" route="route_3" from="9775" to="9781.290" color="0,1,0" departLane="0" type='exit_human'/>
+    <flow id="flow_2" begin="0" end="3600" vehsPerHour="10000" route="route_3" from="9775" to="9781.290" color="0,1,0" departLane="1" type='exit_human'/>
+    <vType id="exit" accel="2" decel="4.5" sigma="0.5" length="5" maxSpeed="15" minGap="0" laneChangeModel="SL2015" guiShape='passenger/wagon' color='0,1,0'/>
+    <vType id="rl" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="25"  carFollowModel="IDM" 
+minGap="2" laneChangeModel="SL2015"  guiShape='passenger/van' color="1,0,0"/>
+</routes>
