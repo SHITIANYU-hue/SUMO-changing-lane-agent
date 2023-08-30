@@ -17,6 +17,8 @@ Eclipse SUMO sumo Version v1_16_0+1958-0ab20a374a1
  License EPL-2.0: Eclipse Public License Version 2 <https://eclipse.org/legal/epl-v20.html>
  Use --help to get the list of options.
 
+Remember to install gym-sumo, go to gym_sumo and run pip install -e .
+
 ## others
 main.py to train model
 
