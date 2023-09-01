@@ -1,9 +1,41 @@
-# Lane Changer Agent with SUMO simulator
-Project developed for Sapienza Honor's Programme.
-The project aims at developing a reinforcement learning application to make an agent drive safely in acondition of dense traffic. For doing so, SUMO was used to simulate the behaviour of the ego vehicletogether with a fleet of autonomous vehicles and to train two model of RL algorithms, namely DQNand A2C.The development flow was the following: creating the highway with NetEdit, get the parameters of thesimulation, create a custom Gym environment and train the networks
+# Training RL Agent with SUMO simulator
+
+## Objective
+
+This Project is inspired  from this project (https://github.com/federicovergallo/SUMO-changing-lane-agent) 
+
+The project aims at developing a reinforcement learning application to make an agent drive safely in condition of differnet densitiy of traffic. For doing so, SUMO was used to simulate the behaviour of the ego vehicletogether with a fleet of autonomous vehicles and to train model of RL algorithms.The development flow was the following: creating the highway with NetEdit, get the parameters of thesimulation, create a custom Gym environment and train the networks
+
+Main contributions of this environment:
+
+1. It is easy to configurate. Compared with [FLOW](https://github.com/flow-project/flow), it is easy to directly control SUMO vehicles
+
+2. It is easy to extend to different real road networks, we could use open street map to download the network in [net.xml format](https://wiki.openstreetmap.org/wiki/OSM_XML) and add the [rou.xml file](https://sumo.dlr.de/docs/Tools/Routes.html) to generate the traffic flow.
+
+3. The Autonomous vehicle can be controlled by a. rule-based controller; b. RL controller; c. user's keyboard. 
+
+4. It is possible to extend to control by large language model
 
 
-![Alt text](figures/traffic.png?raw=true "Traffic scenario. Red vehicle is the agent")
+## Example scenario
+
+Loop network: this network can support long running steps to gather enough experience for agent to learn. We can also support changing differnet traffic density to evaluate the driving efficiency and safety. In this network, the curvature's effect on speed is disabled.
+
+Normal Loop network:
+
+![Alt text](figures/loop.gif?raw=true "Loop network Traffic scenario. Red vehicle is the AV agent")
+
+
+Loop network with stop and go:
+
+![Alt text](figures/loopstopandgo.gif?raw=true "Loop network Traffic scenario with stop and go. Red vehicle is the AV agent")
+
+
+Winston Churchill eastbound on-ramp QEW road geometry: To further evaluate the effectiveness of the proposed method, we create another network15
+based on real road geometry, i.e., Queen Elizabeth Way (QEW) Winston Churchill eastbound on-16 ramp near Toronto, Canada. This network can apply emergent brake, stay in main lane and choose to exit.
+
+
+
 
 
 ## Installation
