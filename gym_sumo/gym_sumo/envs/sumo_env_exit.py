@@ -149,7 +149,7 @@ class SumoEnv_exit(gym.Env):
 		# 	veh_name_ = 'vehicle4_' + str(i)
 		# 	traci.vehicle.add(veh_name_, routeID='route_0', typeID=self.vType, departLane='random',departSpeed='5')
 
-		traci.vehicle.add('exit_veh', routeID='route_0', typeID='exit', departLane='0',departSpeed='5')
+		# traci.vehicle.add('exit_veh', routeID='route_0', typeID='exit', departLane='0',departSpeed='5')
 
 		traci.vehicle.add(self.name, routeID='route_0', typeID='rl', departLane='2',departSpeed=11)
 		# traci.vehicle.setColor(self.name,color='yellow')
@@ -158,21 +158,21 @@ class SumoEnv_exit(gym.Env):
 		# 	# Go here to find out what does it mean
 		# 	# https://sumo.dlr.de/docs/TraCI/Change_Vehicle_State.html#lane_change_mode_0xb6
 			#lane_change_model = np.int('100010001010', 2)
-		traci.vehicle.setLaneChangeMode('exit_veh', 1621)
-		traci.vehicle.setLaneChangeMode(self.name, 16)
+		# traci.vehicle.setLaneChangeMode('exit_veh', 1621)
+		# traci.vehicle.setLaneChangeMode(self.name, 16)
 
-		traci.vehicle.setSpeedMode('exit_veh', 32)
+		# traci.vehicle.setSpeedMode('exit_veh', 32)
 		# traci.vehicle.add(self.name, routeID='route_1', typeID='rl',departLane = '2')
 		traci.vehicle.setSpeedMode(self.name, self.speed_mode)
 
 		# Do some random step to distribute the vehicles
-		for step in range(self.numVehicles*3):
-			traci.simulationStep()
+		# for step in range(self.numVehicles*3):
+		# 	traci.simulationStep()
 
 
-		for i in range(self.numVehicles):
-			veh_name_ = 'vehicle3_' + str(i)
-			traci.vehicle.add(veh_name_, routeID='route_1', typeID=self.vType, departLane='random',departSpeed='5')
+		# for i in range(self.numVehicles):
+		# 	veh_name_ = 'vehicle3_' + str(i)
+		# 	traci.vehicle.add(veh_name_, routeID='route_1', typeID=self.vType, departLane='random',departSpeed='5')
 		# Setting the lane change mode to 0 meaning that we disable any autonomous lane change and collision avoidance
 		traci.vehicle.setLaneChangeMode(self.name, 0)
 		# Setting up useful parameters
@@ -436,6 +436,41 @@ class SumoEnv_exit(gym.Env):
 
 		return veh_ids
 
+	def calculate_surround_info(self,info):
+
+		if len(info)!=0:
+			info_=info[0][0]
+			vel=traci.vehicle.getSpeed(info_)
+			headway=self.calculate_distance_veh(info_,self.name)
+			return [vel,headway]
+		else:
+			return None
+		
+
+	def get_llm_state(self):
+		# Ego vehicle's info
+		this_vel, lead_vel, lead_info, headway, target_speed = self.get_ego_veh_info(self.name)
+		lead_left = traci.vehicle.getNeighbors(self.name, '010')
+		lead_right = traci.vehicle.getNeighbors(self.name, '011')
+		follow_left = traci.vehicle.getNeighbors(self.name, '000')
+		follow_right = traci.vehicle.getNeighbors(self.name, '001')
+		change_right=traci.vehicle.couldChangeLane(self.name,-1)	
+		change_left=traci.vehicle.couldChangeLane(self.name,1)	
+
+		result_dict = {
+			'ego_info': [this_vel, target_speed],
+			'ego_lead':[lead_vel,headway],
+			'lead_left': self.calculate_surround_info(lead_left),
+			'lead_right': self.calculate_surround_info(lead_right),
+			'follow_left': self.calculate_surround_info(follow_left),
+			'follow_right': self.calculate_surround_info(follow_right),
+			'safe_constraint':[change_right,change_left]
+		}
+
+	
+
+		return result_dict
+
 
 
 	def compute_jerk(self):
@@ -455,7 +490,8 @@ class SumoEnv_exit(gym.Env):
 		Define a state as a vector of vehicles information
 		'''
 		# state=self.get_lane_grid_state()
-		state=self.get_scan_range_state()
+		# state=self.get_scan_range_state()
+		state=self.get_llm_state()
 		# state=self.get_grid_state()
 
 		return state
@@ -555,7 +591,7 @@ class SumoEnv_exit(gym.Env):
 			R_comf = -alpha_comf*jerk**2
 			R_tot = R_comf + R_eff + R_safe+R_exit
 			
-		return [R_tot, R_comf, R_eff, R_safe,R_exit]
+		return [R_tot, jerk, this_vel, R_safe,R_exit]
 		
 
 	def apply_acceleration(self, vid, acc, smooth=False):
@@ -579,10 +615,10 @@ class SumoEnv_exit(gym.Env):
 		# print('this edge',road)
 		target_speed=traci.vehicle.getAllowedSpeed(name)
 
-		if lead_info is None or lead_info == '' or lead_info[1]>5:  # no car ahead??
+		if lead_info is None or lead_info == '' or lead_info[1]>100:  # no car ahead??
 			s_star=0
 			headway=999999
-			lead_vel=99999
+			lead_vel=999999
 		else:
 			lead_id=traci.vehicle.getLeader(name)[0]
 			headway = traci.vehicle.getLeader(name)[1]
@@ -605,7 +641,7 @@ class SumoEnv_exit(gym.Env):
 		return [target_speed,lead_vel]
 
 
-	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,lane_change='SECRM',car_follow='gipps'):
+	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,lane_change='SECRM',car_follow='gipps',gipps_params=[1.5,-1,0.1,4]):
 		'''
 		This will :
 		- send action, namely change lane or stay 
@@ -638,7 +674,7 @@ class SumoEnv_exit(gym.Env):
 				
 
 
-		if sumo_lc:
+		if sumo_lc and action[0]==action[1]==0:
 			# 2^0: right neighbors (else: left)
 			# 2^1: neighbors ahead (else: behind)
 			# 2^2: only neighbors blocking a potential lane change (else: all)
@@ -657,8 +693,8 @@ class SumoEnv_exit(gym.Env):
 						traci.vehicle.changeLane(self.name,2, 0.1)
 
 			if lane_change=='SECRM':
-
-				controller=GippsController()
+				gipps_acc,gipps_decel,gipps_tau,gipps_s0=gipps_params
+				controller=GippsController(acc=gipps_acc,b=gipps_decel,tau=gipps_tau,s0=gipps_s0)
 				lead_left= traci.vehicle.getNeighbors(self.name,'010')
 				lead_right=traci.vehicle.getNeighbors(self.name,'011')
 				follow_left=traci.vehicle.getNeighbors(self.name,'000')
@@ -718,9 +754,12 @@ class SumoEnv_exit(gym.Env):
 					lane_num=0
 				if lane==(lane_num-1):
 					change_left=False
-				if lane==0 or lane_id=='9778':
+				# if lane==0 or lane_id=='9778' :
+				if lane==0  :
 					change_right=False
 
+				# change_left=False ### should disable
+				# change_right=True
 
 				print('ego secrm speed',speed_e,'north secrm speed',speed_n,'south secrm speed',speed_s)
 				print('ego veh speed:', this_vel)
@@ -738,21 +777,22 @@ class SumoEnv_exit(gym.Env):
 					if change_left ==True and change_right==True:
 						action[0]=2
 
+				if stop_and_go and (lane_id=='9775' or lane=='9778' or lane=='9783'):
+					action[0]=0
 				print('lane decision',action[0])
-				road=traci.vehicle.getRoadID('exit_veh')
+				# road=traci.vehicle.getRoadID('exit_veh')
 				# print('road',road)
-				if action[0] == 0 and road!='9783':
+				if action[0] == 0 :
 					traci.vehicle.changeLaneRelative(self.name,0,0.1)
-				if action[0] == 1 and road!='9783':
+				if action[0] == 1 :
 					traci.vehicle.changeLaneRelative(self.name,-1,0.1)
-				if action[0] == 2 and road!='9783':
+				if action[0] == 2 :
 					traci.vehicle.changeLaneRelative(self.name,1,0.1)
 
 
 		# Action legend : 0 stay, 1 change to right, 2 change to left
 		else:
-			action[0]=map_action(action[0])
-			# print('lane',action[0])
+			print('lane',action[0])
 			lane=traci.vehicle.getRoadID(self.name)
 
 			lane_num=int(traci.edge.getLaneNumber(lane))
@@ -764,7 +804,7 @@ class SumoEnv_exit(gym.Env):
 			if action[0] == 2 :
 				traci.vehicle.changeLaneRelative(self.name,1,0.1)
 
-		if sumo_carfollow:
+		if sumo_carfollow and action[0]==action[1]==0:
 
 			if car_follow=='IDM':
 				controller=IDMController()
@@ -775,14 +815,19 @@ class SumoEnv_exit(gym.Env):
 				controller=GippsController()
 				info=[target_speed,lead_vel,this_vel,speed_e]
 				acceleration= controller.get_accel(info)
+			print('ego hw',headway_e)
+			if stop_and_go and lane_id=='9775' and this_vel>2 and headway_e<30:
+				acceleration=-5
+			if stop_and_go and lane_id=='9775' and this_vel<=1 :
+				acceleration=0
+			# if headway_e<11:
+			# 	acceleration=-3
 			action[1]=acceleration
 			print('acceleration',action[1])
-			self.apply_acceleration(self.name,acceleration)
+			self.apply_acceleration(self.name,action[1])
 
-
-
-
-		else:	
+		else:
+			print('acceleration',action[1])
 			self.apply_acceleration(self.name,action[1])
 
 		edge = self.curr_lane.split("_")[0]
@@ -794,10 +839,10 @@ class SumoEnv_exit(gym.Env):
 				# Get vehicles in the lane
 				vehicles = traci.lane.getLastStepVehicleIDs(lane)
 				for vehicle in vehicles:
-					if vehicle!=self.name:
+					if vehicle!=self.name and (vehicle=='vehcleg3_0' or vehicle=='vehcleg3_1' or vehicle=='vehcleg2_0'):
 						info=self.get_vehicle_info(vehicle)
 						road=traci.vehicle.getRoadID(vehicle)
-						if road=='9775' and info[1]>3 :
+						if road=='9775' and info[1]>1 :
 							self.apply_acceleration(vehicle,-3)
 		# 		if info[0]>0 and info[0]<50: ## travel distance in  between 50 to 150?
 		# 			self.apply_acceleration(vehicle,-1)
@@ -815,6 +860,12 @@ class SumoEnv_exit(gym.Env):
 		collision = self.detect_collision()
 		# print('collision',collision)
 		# Compute Reward 
+		if self.curr_step <= self.max_steps:
+			done = False
+		else:
+			done = True
+			self.curr_step = 0
+
 		if 'rlagent' in traci.vehicle.getIDList():
 			reward = self.compute_reward(collision, action)
 			self.update_params() ## here has out of network error!
@@ -825,18 +876,10 @@ class SumoEnv_exit(gym.Env):
 			done=True
 			next_state=None
 			reward=None
-			collision=True
-
-		# Update agent params 
 
 		# Update curr state
 		self.curr_step += 1
 		# Return
-		if self.curr_step <= self.max_steps:
-			done = collision
-		else:
-			done = True
-			self.curr_step = 0
 		return next_state, reward, done, collision
 		
 	def render(self, mode='human', close=False):
