@@ -3,14 +3,14 @@ import os
 import time
 import pandas as pd
 import json
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = "sk-"
 openai.api_key = os.environ["OPENAI_API_KEY"]
 import openai
 import time
 
 class llmagent:
     def __init__(self):
-        self.api_key = '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'  # Replace with your OpenAI API key
+        self.api_key = 'sk-'  # Replace with your OpenAI API key
     
     def generate_chat_completion(self, prompt):
         try:
