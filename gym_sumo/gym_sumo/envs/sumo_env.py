@@ -64,6 +64,7 @@ class SumoEnv(gym.Env):
 		self.collision = False
 		self.done = False
 		self.lane_change_model = 0b00100000000 ## disable lane change
+		self.speed_mode=32 ## disable all check for speed
 
 		# Starting sumo
 		home = os.getenv("HOME")
@@ -80,14 +81,18 @@ class SumoEnv(gym.Env):
 		# Populating the highway
 		for i in range(self.numVehicles):
 			veh_name = 'vehicle_' + str(i)
-			traci.vehicle.add(veh_name, routeID='route_0', typeID=self.vType, departLane='random')
+			traci.vehicle.add(veh_name, routeID='route_0', typeID=self.vType, departLane='random',departSpeed='10')
+			if i ==(self.numVehicles-3):
+				# print('add rl')
+				traci.vehicle.add(self.name, routeID='route_0', typeID='rl', departLane='random',departSpeed='10')
+
 			# Lane change model comes from bit set 100010101010
 			# Go here to find out what does it mean
 			# https://sumo.dlr.de/docs/TraCI/Change_Vehicle_State.html#lane_change_mode_0xb6
 			#lane_change_model = np.int('100010001010', 2)
-			
 			traci.vehicle.setLaneChangeMode(veh_name, self.lane_change_model)
-		traci.vehicle.add(self.name, routeID='route_0', typeID='rl')
+		# traci.vehicle.add(self.name, routeID='route_0', typeID='rl')
+		traci.vehicle.setSpeedMode(self.name, self.speed_mode)
 
 		# Do some random step to distribute the vehicles
 		for step in range(self.numVehicles*4):
@@ -102,15 +107,15 @@ class SumoEnv(gym.Env):
 		# initialize params
 		self.pos = traci.vehicle.getPosition(self.name)
 		self.curr_lane = traci.vehicle.getLaneID(self.name)
-		if self.curr_lane == '':
-			'''
-			if we had collission, the agent is being teleported somewhere else. 
-			Therefore I will do simulation step until he get teleported back
-			'''
-			assert self.collision
-			while self.name in traci.simulation.getStartingTeleportIDList() or traci.vehicle.getLaneID(self.name) == '':
-				traci.simulationStep()
-			self.curr_lane = traci.vehicle.getLaneID(self.name)
+		# if self.curr_lane == '':
+		# 	'''
+		# 	if we had collission, the agent is being teleported somewhere else. 
+		# 	Therefore I will do simulation step until he get teleported back
+		# 	'''
+		# 	assert self.collision
+		# 	while self.name in traci.simulation.getStartingTeleportIDList() or traci.vehicle.getLaneID(self.name) == '':
+		# 		traci.simulationStep()
+		# 	self.curr_lane = traci.vehicle.getLaneID(self.name)
 		self.curr_sublane = int(self.curr_lane.split("_")[1])
 
 		self.target_speed = traci.vehicle.getAllowedSpeed(self.name)
@@ -242,7 +247,7 @@ class SumoEnv(gym.Env):
 		if reward_type=='ye':
 			alpha_comf = 0.1
 			w_speed = 5
-			w_change = 0
+			w_change = 1
 			w_eff = 1
 			
 			# Comfort reward 
@@ -258,8 +263,8 @@ class SumoEnv(gym.Env):
 			else:
 				R_change = 0
 			# Eff
-			R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt not since it is not mandatory lane change
-			
+			# R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt not since it is not mandatory lane change
+			R_eff = R_speed
 			# Safety Reward
 			# Just penalize collision for now
 			if collision:
@@ -272,16 +277,19 @@ class SumoEnv(gym.Env):
 
 		if reward_type=='secrm':
 			alpha_comf = 0.1
-			w_speed = 5
+			w_speed = 1
 			w_change = 0
 			w_eff = 1
-			w_safe=0
+			w_safe=0.1
 			
 			this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
-			info=[this_vel,target_speed,lead_vel]
+			if this_vel<-5000:
+				this_vel=0
+			info=[target_speed,lead_vel,this_vel]
 			controller=GippsController()
 			target_speed= controller.get_speed(info)
-			R_speed = -np.abs(this_vel - target_speed)
+			R_speed = -np.abs(this_vel - 20)
+			# print('R speed',R_speed)
 			if action[0]!=0:
 				R_change = -1
 			else:
@@ -296,10 +304,10 @@ class SumoEnv(gym.Env):
 
 			R_safe=w_safe*R_safe
 			jerk = self.compute_jerk()
-			R_comf = -alpha_comf*jerk**2
+			# R_comf = -alpha_comf*jerk**2
+			R_comf=jerk
 			R_tot = R_comf + R_eff + R_safe
-
-
+			# print('R total',R_tot)
 
 		return [R_tot, R_comf, R_eff, R_safe]
 		
@@ -349,7 +357,7 @@ class SumoEnv(gym.Env):
 		return [target_speed,lead_vel]
 
 
-	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,lane_change='SECRM',car_follow='gipps'):
+	def step(self, action,max_dec=-3,max_acc=3,stop_and_go=False,sumo_lc=False,sumo_carfollow=False,lane_change='SECRM',car_follow='Gipps'):
 		'''
 		This will :
 		- send action, namely change lane or stay 
@@ -361,7 +369,10 @@ class SumoEnv(gym.Env):
 		'''
 
 		this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
-
+		# print('this vel',this_vel)
+		# print('headway',headway)
+		if headway <10 and this_vel>lead_vel:
+			action[1]=-3
 
 		if sumo_lc:
 			# 2^0: right neighbors (else: left)
@@ -387,7 +398,6 @@ class SumoEnv(gym.Env):
 				lead_right=traci.vehicle.getNeighbors(self.name,'011')
 				lead_info=traci.vehicle.getLeader(self.name)
 				this_vel=traci.vehicle.getSpeed(self.name)
-
 				if lead_left is None or len(lead_left) == 0:  # no car ahead
 					lead_id=0
 					lead_vel=self.target_speed
@@ -414,21 +424,22 @@ class SumoEnv(gym.Env):
 					lead_vel=traci.vehicle.getSpeed(lead_id)
 				info_e=[self.target_speed,lead_vel,this_vel]
 				speed_e= controller.get_speed(info_e)
-				
+				# print('target',self.target_speed)
+				# print('current speed',this_vel)
 
 				change_right=traci.vehicle.couldChangeLane(self.name,-1)
 				change_left=traci.vehicle.couldChangeLane(self.name,1)
 
 
-				print('ego secrm speed',speed_e,'north secrm speed',speed_n,'south secrm speed',speed_s)
-				print('ego veh speed:', this_vel)
-				print('change right',change_right,'change left',change_left)
-
+				# print('ego secrm speed',speed_e,'north secrm speed',speed_n,'south secrm speed',speed_s)
+				# print('ego veh speed:', this_vel)
+				# print('change right',change_right,'change left',change_left)
+				action[0]=0
 				if speed_n>speed_e and speed_n >speed_s and change_left:
 					action[0]=2
 				if speed_s>speed_e and speed_s > speed_n and change_right:
 					action[0]=1
-				if abs(speed_n-speed_s)<100 and min(speed_n,speed_s)>speed_e:
+				if abs(speed_n-speed_s)<10 and min(speed_n,speed_s)>speed_e:
 					if change_right==True and change_left==False:
 						action[0]=1
 					if change_left ==True and change_right==False:
@@ -436,16 +447,15 @@ class SumoEnv(gym.Env):
 					if change_left ==True and change_right==True:
 						action[0]=1
 
-				print('lane decision',action[0])
 
 				if action[0] == 1:
-					print('change right !!')
+					# print('change right !!')
 					if self.curr_sublane == 1:
 						traci.vehicle.changeLane(self.name, 0, 0.1)
 					elif self.curr_sublane == 2:
 						traci.vehicle.changeLane(self.name, 1, 0.1)
 				if action[0] == 2:
-					print('change left !!')
+					# print('change left !!')
 					if self.curr_sublane == 0:
 						traci.vehicle.changeLane(self.name, 1, 0.1)
 					elif self.curr_sublane == 1:
@@ -472,7 +482,6 @@ class SumoEnv(gym.Env):
 						traci.vehicle.changeLane(self.name, 2, 0.1)
 
 		if sumo_carfollow:
-
 			if car_follow=='IDM':
 				controller=IDMController()
 				info=[this_vel,target_speed,headway,lead_vel,lead_info]
@@ -491,7 +500,7 @@ class SumoEnv(gym.Env):
 
 		else:	
 			self.apply_acceleration(self.name,action[1])
-
+			
 		edge = self.curr_lane.split("_")[0]
 		# if slow_down:
 		lanes = [lane for lane in self.lane_ids if edge in lane]
@@ -505,7 +514,7 @@ class SumoEnv(gym.Env):
 						info=self.get_vehicle_info(vehicle)
 						road=traci.vehicle.getRoadID(vehicle)
 						if road=='gneE6' and info[1]>3 :
-							self.apply_acceleration(vehicle,-3)
+							self.apply_acceleration(vehicle,-4)
 		# 		if info[0]>0 and info[0]<50: ## travel distance in  between 50 to 150?
 		# 			self.apply_acceleration(vehicle,-1)
 		# Sim step
@@ -516,7 +525,8 @@ class SumoEnv(gym.Env):
 		# Compute Reward 
 		reward = self.compute_reward(collision, action)
 		# Update agent params 
-		self.update_params()
+		if not collision:
+			self.update_params()
 		# State 
 		next_state = self.get_state()
 		# Update curr state

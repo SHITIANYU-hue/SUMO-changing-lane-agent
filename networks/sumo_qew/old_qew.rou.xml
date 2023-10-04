@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on Fri 16 Jul 2021 05:39:05 PM by Eclipse SUMO netedit Version v1_8_0+1878-9c33583f10
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <input>
+        <sumo-net-file value="churchill_sumo_transfer.net.xml"/>
+    </input>
+
+    <output>
+        <output-file value="churchill_sumo_transfer.net.xml"/>
+    </output>
+
+    <processing>
+        <geometry.min-radius.fix.railways value="false"/>
+        <geometry.max-grade.fix value="false"/>
+        <offset.disable-normalization value="true"/>
+        <lefthand value="false"/>
+    </processing>
+
+    <junctions>
+        <no-turnarounds value="true"/>
+        <junctions.corner-detail value="0"/>
+        <junctions.limit-turn-speed value="-1"/>
+        <rectangular-lane-cut value="false"/>
+    </junctions>
+
+    <pedestrian>
+        <walkingareas value="false"/>
+    </pedestrian>
+
+    <netedit>
+        <route-files value="/home/ilia/Programming/sow45_code/wolf/sumo_net/sumo_qew/churchill_sumo_transfer.rou.xml"/>
+    </netedit>
+
+    <report>
+        <aggregate-warnings value="5"/>
+    </report>
+
+</configuration>
+-->
+
+<!--
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <!-- <flow id="flow_0" begin="0.00" end="3600.00" number="500"> -->
+        <route edges="4255.36 4258 4257" color="cyan" id="4255.36"/>
+    <!-- </flow> -->
+    <!-- <flow id="flow_1" begin="0.00" end="3600.00" number="400"> -->
+        <route edges="4254 4255 4255.36 4258 4257" color="cyan" id="4254"/>
+    <!-- </flow> -->
+    <!-- <flow id="flow_2" begin="0.00" end="3600.00" number="3600"> -->
+        <route edges="4304 4259 4260 4256 4258 4257" color="orange" id="4304"/>
+
+        <route edges="4257" color="orange" id="4257"/>
+        <!-- <vType id="human" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="20" minGap="0" laneChangeModel="SL2015" guiShape='passenger/wagon'/> -->
+        <vType id="rl" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="35"  carFollowModel="IDM" 
+    minGap="2" laneChangeModel="SL2015"  guiShape='passenger/van' color="1,0,0"/>
+    <!-- </flow> -->
+    <vType id="human" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="20" minGap="0" laneChangeModel="SL2015" guiShape='passenger/wagon'/>
+    <flow id="human_flow" vtype="human" begin="0.00" end="3600.00"  probability="0.5" from="4304" to="4257" via="4304 4259 4260 4256 4258 4257"/>
+    <!-- <route edges="4304 4259 4260 4256 4258 4257" color="orange" id="4304"/> -->
+</routes> -->
+
+
+<!-- <routes>
+    <flow id="flow_0" begin="0.00" end="3600.00" number="500">
+        <route edges="4253 4255 4255.36 4258 4257" color="cyan"/>
+    </flow>
+    <flow id="flow_1" begin="0.00" end="3600.00" number="400">
+        <route edges="4254 4255 4255.36 4258 4257" color="cyan"/>
+    </flow>
+    <flow id="flow_2" begin="0.00" end="3600.00" number="3600">
+        <route edges="4304 4259 4260 4256 4258 4257" color="orange"/>
+    </flow>
+</routes> -->
+
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <route edges="4255.36 4258 4257" color="cyan" id="4255.36"/>
+    <route edges="4254 4255 4255.36 4258 4257" color="cyan" id="4254"/>
+    <route edges="4304 4259 4260 4256 4258 4257" color="orange" id="4304"/>
+    <route edges="4257" color="orange" id="4257"/>
+
+    <vType id="rl" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="35"  carFollowModel="IDM" 
+    minGap="2" laneChangeModel="SL2015"  guiShape='passenger/van' color="1,0,0"/>
+    <vType id="human" accel="0.8" decel="4.5" sigma="0.5" length="5" maxSpeed="20" minGap="0" laneChangeModel="SL2015" guiShape='passenger/wagon'/>
+
+    <flow id="human_flow" vtype="human" begin="0.00" end="3600.00"  probability="0.5" route="4304"/>
+
+</routes>

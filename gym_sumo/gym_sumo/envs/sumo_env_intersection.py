@@ -71,7 +71,7 @@ def map_action(value,clamp=1):
 
 
 
-class SumoEnv_exit(gym.Env):
+class SumoEnv_intersection(gym.Env):
 	def __init__(self):
 		self.name = 'rlagent'
 		self.step_length = 0.4
@@ -99,7 +99,7 @@ class SumoEnv_exit(gym.Env):
 		self.done = False
 
 
-	def start(self, gui=False, numVehicles=10, warm_up=50, vType='human', network_conf="networks/exit_qew/sumoconfig.sumo.cfg", network_xml='networks/exit_qew/qew_mississauga_rd.net.xml'):
+	def start(self, gui=False, numVehicles=10, warm_up=50, vType='human', network_conf="networks/intersection_qew/sumoconfig.sumo.cfg", network_xml='networks/intersection_qew/qew_mississauga_rd.net.xml'):
 		self.gui = gui
 		self.numVehicles = numVehicles
 		self.vType = vType
@@ -151,7 +151,7 @@ class SumoEnv_exit(gym.Env):
 
 		# traci.vehicle.add('exit_veh', routeID='route_0', typeID='exit', departLane='0',departSpeed='5')
 
-		traci.vehicle.add(self.name, routeID='route_0', typeID='rl', departLane='2',departSpeed=11)
+		traci.vehicle.add(self.name, routeID='route_4', typeID='rl', departLane='2',departSpeed=11)
 		# traci.vehicle.setColor(self.name,color='yellow')
 		# traci.vehicle.setColor('vehicle2_10',color='1,0,0')
 		# 	# Lane change model comes from bit set 100010101010

@@ -8,3 +8,4 @@ car_model_bckp.py
 runs/*
 *.npy
 model_weights/*
+dataplot/*

@@ -56,7 +56,7 @@ if agent_args.on_policy == True:
     score = 0.0
     # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
     for n_epi in range(args.epochs):
-        state = env.reset(gui=args.render, numVehicles=25)
+        state = env.reset(gui=args.render, numVehicles=10,num_rl=10)
         agent_name=env.rl_names
         action={}
         for t in range(args.evasteps):

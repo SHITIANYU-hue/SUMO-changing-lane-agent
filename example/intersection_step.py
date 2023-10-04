@@ -11,14 +11,13 @@ import random
 from agents.ppo import PPO
 from agents.sac import SAC
 from agents.ddpg import DDPG
-from agents.llm_control import llmagent
 
 from utils.utils import make_transition, Dict, RunningMeanStd
 os.makedirs('./model_weights', exist_ok=True)
 
 parser = ArgumentParser('parameters')
 
-parser.add_argument("--env_name", type=str, default ='gym_sumo-v2')
+parser.add_argument("--env_name", type=str, default ='gym_sumo-v5')
 parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to adjust (default : ppo)')
 parser.add_argument('--train', type=bool, default=True, help="(default: True)")
 parser.add_argument('--render', type=bool, default=False, help="(default: False)")
@@ -51,7 +50,7 @@ action_dim = 2
 state_dim = 37
 state_rms = RunningMeanStd(state_dim)
 
-agent=llmagent()
+
 
 
 
@@ -100,10 +99,11 @@ for n_epi in range(args.epochs):
     veh_name3 = 'vehcleg3_'
     veh_name4 = 'vehcleg4_'
 
-    H=20 ## problem is it will stuck in the middle, need to investigate when will it swtich lane
-    H2=3
-    distance=95
-    distance2=120
+    H=40 ## problem is it will stuck in the middle, need to investigate when will it swtich lane
+    H2=40
+    H3=40
+    distance=50
+    distance2=60
     departspeed=11
     vels=[]
     jerks=[]
@@ -113,41 +113,42 @@ for n_epi in range(args.epochs):
             veh_name_=veh_name3+str(i)
             veh_name4_=veh_name4+str(i)
 
-            # traci.vehicle.add(veh_name4_, routeID='route_1', typeID='human', departPos=i*H2+distance2, departLane=0,departSpeed=departspeed)
-            # traci.vehicle.setSpeedMode(veh_name4_, departspeed)
+            traci.vehicle.add(veh_name4_, routeID='route_4', typeID='human', departPos=i*H2+distance2, departLane=1,departSpeed=departspeed)
+            traci.vehicle.setSpeedMode(veh_name4_, departspeed)
             # traci.vehicle.setLaneChangeMode(veh_name4_,0b001000000000)
 
-            traci.vehicle.add(veh_name2_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=0,departSpeed=departspeed)
+            traci.vehicle.add(veh_name2_, routeID='route_4', typeID='human', departPos=i*H+distance, departLane=0,departSpeed=departspeed)
             traci.vehicle.setSpeedMode(veh_name2_, departspeed)
-            traci.vehicle.setLaneChangeMode(veh_name2_,0b001000000000)
-
-            traci.vehicle.add(veh_name_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=2,departSpeed=departspeed)
+            # traci.vehicle.setLaneChangeMode(veh_name2_,0b001000000000)
+        # if i %10 ==0 and i <40:
+            traci.vehicle.add(veh_name_, routeID='route_4', typeID='human', departPos=i*H3+distance, departLane=2,departSpeed=departspeed)
             traci.vehicle.setSpeedMode(veh_name_, departspeed)
-            traci.vehicle.setLaneChangeMode(veh_name_,0b001000000000)
+            # traci.vehicle.setLaneChangeMode(veh_name_,0b001000000000)
 
         else:
             veh_name3_=veh_name3+str(i)
-            traci.vehicle.add(veh_name3_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=1,departSpeed=departspeed)
+            traci.vehicle.add(veh_name3_, routeID='route_5', typeID='human', departPos=i*H+distance, departLane=1,departSpeed=departspeed)
             traci.vehicle.setSpeedMode(veh_name3_, departspeed)
-            traci.vehicle.setLaneChangeMode(veh_name3_,0b001000000000)
+            # traci.vehicle.setLaneChangeMode(veh_name3_,0b001000000000)
 
 
     for t in range(args.horizon):
         print('step',t)
-        if (10<t<13) or (90<t<93) or (120<t<123):
-            lane, acceleration=agent.generate_decision(state)
         lane=0
         acceleration = 0  # 0 for no change, 1 for acceleration, -1 for deceleration
 
+        # if t>110:
+        #     lane=1
         # Check if manual control is enabled and if user input keys are pressed
         # Check if manual control is enabled and apply user input
         if manual:
             lane = user_lane_input
             acceleration = user_acceleration_input
         # Apply the lane change (if any) and simulate the next step
-        state, reward_info, done, collision = env.step([lane, acceleration], sumo_lc=True, sumo_carfollow=True, stop_and_go=False, car_follow='Gipps', lane_change='SECRM')
-        
-        print('state',state)
+        print('user input',[lane,acceleration])
+        next_state_, reward_info, done, collision = env.step([lane, acceleration], sumo_lc=True, sumo_carfollow=True, stop_and_go=False, car_follow='Gipps', lane_change='SECRM')
+
+
 
         print('reward',reward_info)
         print('info',collision)
@@ -163,9 +164,9 @@ for n_epi in range(args.epochs):
             print('rl vehicle run out of network!!')
             break
 
-        if collision:
-            print('rl vehicle collide!!')
-            break
+        # if collision:
+        #     print('rl vehicle collide!!')
+        #     break
         _,jerk,vel,_,_=reward_info
         vels.append(vel)
         jerks.append(jerk)

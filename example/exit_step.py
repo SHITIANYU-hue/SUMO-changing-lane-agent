@@ -20,7 +20,8 @@ parser = ArgumentParser('parameters')
 parser.add_argument("--env_name", type=str, default ='gym_sumo-v2')
 parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to adjust (default : ppo)')
 parser.add_argument('--train', type=bool, default=True, help="(default: True)")
-parser.add_argument('--render', type=bool, default=True, help="(default: False)")
+parser.add_argument('--render', type=bool, default=False, help="(default: False)")
+parser.add_argument('--manual', type=bool, default=False, help="(default: False)")
 parser.add_argument('--horizon', type=int, default=6000, help='number of simulation steps, (default: 6000)')
 parser.add_argument('--epochs', type=int, default=1, help='number of epochs, (default: 1000)')
 parser.add_argument('--tensorboard', type=bool, default=False, help='use_tensorboard, (default: False)')
@@ -53,7 +54,6 @@ state_rms = RunningMeanStd(state_dim)
 
 
 
-from pynput import keyboard
 
 user_lane_input = 0
 user_acceleration_input = 0  # 0 for no change, 1 for acceleration, -1 for deceleration
@@ -85,10 +85,12 @@ avg_scors=[]
 stuck=0
 pre_step=20
 score = 0.0
-manual=True
-# Create keyboard listener
-listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
-listener.start()
+manual=args.manual
+if manual:
+    from pynput import keyboard
+    # Create keyboard listener
+    listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
+    listener.start()
 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
 for n_epi in range(args.epochs):
     state = env.reset(gui=args.render, numVehicles=0)
@@ -98,35 +100,35 @@ for n_epi in range(args.epochs):
     veh_name4 = 'vehcleg4_'
 
     H=20 ## problem is it will stuck in the middle, need to investigate when will it swtich lane
-    H2=3
-    distance=55
+    H2=20
+    distance=100
     distance2=120
     departspeed=11
     vels=[]
     jerks=[]
-    # for i in range(pre_step):
-    #     if i %2==0:
-    #         veh_name2_=veh_name2+str(i)
-    #         veh_name_=veh_name3+str(i)
-    #         veh_name4_=veh_name4+str(i)
+    for i in range(pre_step):
+        if i %2==0:
+            veh_name2_=veh_name2+str(i)
+            veh_name_=veh_name3+str(i)
+            veh_name4_=veh_name4+str(i)
 
-    #         # traci.vehicle.add(veh_name4_, routeID='route_1', typeID='human', departPos=i*H2+distance2, departLane=0,departSpeed=departspeed)
-    #         # traci.vehicle.setSpeedMode(veh_name4_, departspeed)
-    #         # traci.vehicle.setLaneChangeMode(veh_name4_,0b001000000000)
+            # traci.vehicle.add(veh_name4_, routeID='route_1', typeID='human', departPos=i*H2+distance2, departLane=0,departSpeed=departspeed)
+            # traci.vehicle.setSpeedMode(veh_name4_, departspeed)
+            # traci.vehicle.setLaneChangeMode(veh_name4_,0b001000000000)
 
-    #         traci.vehicle.add(veh_name2_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=0,departSpeed=departspeed)
-    #         traci.vehicle.setSpeedMode(veh_name2_, departspeed)
-    #         traci.vehicle.setLaneChangeMode(veh_name2_,0b001000000000)
+            traci.vehicle.add(veh_name2_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=0,departSpeed=departspeed)
+            traci.vehicle.setSpeedMode(veh_name2_, departspeed)
+            traci.vehicle.setLaneChangeMode(veh_name2_,0b001000000000)
 
-    #         traci.vehicle.add(veh_name_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=2,departSpeed=departspeed)
-    #         traci.vehicle.setSpeedMode(veh_name_, departspeed)
-    #         traci.vehicle.setLaneChangeMode(veh_name_,0b001000000000)
+            traci.vehicle.add(veh_name_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=2,departSpeed=departspeed)
+            traci.vehicle.setSpeedMode(veh_name_, departspeed)
+            traci.vehicle.setLaneChangeMode(veh_name_,0b001000000000)
 
-    #     else:
-    #         veh_name3_=veh_name3+str(i)
-    #         traci.vehicle.add(veh_name3_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=1,departSpeed=departspeed)
-    #         traci.vehicle.setSpeedMode(veh_name3_, departspeed)
-    #         traci.vehicle.setLaneChangeMode(veh_name3_,0b001000000000)
+        else:
+            veh_name3_=veh_name3+str(i)
+            traci.vehicle.add(veh_name3_, routeID='route_0', typeID='human', departPos=i*H+distance, departLane=1,departSpeed=departspeed)
+            traci.vehicle.setSpeedMode(veh_name3_, departspeed)
+            traci.vehicle.setLaneChangeMode(veh_name3_,0b001000000000)
 
 
     for t in range(args.horizon):
@@ -163,7 +165,7 @@ for n_epi in range(args.epochs):
 
         if collision:
             print('rl vehicle collide!!')
-            # break
+            break
         _,jerk,vel,_,_=reward_info
         vels.append(vel)
         jerks.append(jerk)
