@@ -42,6 +42,11 @@ Main contributions of this environment:
 2.3 emergent brake in qew
 ![Alt text](figures/emergent-brake-qew.gif?raw=true "qew network Traffic scenario with emergent brake. Red vehicle is the AV agent")
 
+2.4 merge in qew
+![Alt text](figures/mergeqew.gif?raw=true "qew network Traffic scenario with merge case. Red vehicle is the AV agent")
+
+2.5 intersection in qew
+![Alt text](figures/intersectionqew.gif?raw=true "qew network Traffic scenario with intersection case. Red vehicle is the AV agent")
 
 
 ## Installation
