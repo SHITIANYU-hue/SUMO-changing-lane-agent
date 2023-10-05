@@ -17,7 +17,7 @@ Main contributions of this environment:
 4. It is possible to extend to control by large language model
 
 
-## Example scenario
+## Single agent Example scenario
 
 1. Loop network: this network can support long running steps to gather enough experience for agent to learn. We can also support changing differnet traffic density to evaluate the driving efficiency and safety. In this network, the curvature's effect on speed is disabled.
 
@@ -47,6 +47,19 @@ Main contributions of this environment:
 
 2.5 intersection in qew
 ![Alt text](figures/intersectionqew.gif?raw=true "qew network Traffic scenario with intersection case. Red vehicle is the AV agent")
+
+
+## Multi agent Example scenario
+
+3.1  Loop network with multi-agent:
+
+![Alt text](figures/multi-agent-loop.gif?raw=true "Loop network with multi-agent Traffic scenario. Red vehicle is the AV agent")
+
+
+3.2  Merge network with multi-agent:
+
+![Alt text](figures/multi-agent-merge.gif?raw=true "merge network with multi-agent Traffic scenario. Red vehicle is the AV agent")
+
 
 
 ## Installation

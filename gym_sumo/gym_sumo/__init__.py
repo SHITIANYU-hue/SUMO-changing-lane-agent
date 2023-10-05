@@ -33,3 +33,8 @@ register(
     id='gym_sumo-v5',
     entry_point='gym_sumo.envs:SumoEnv_intersection',
 )
+
+register(
+    id='gym_sumo-v6',
+    entry_point='gym_sumo.envs:SumoEnv_merge_multi',
+)
