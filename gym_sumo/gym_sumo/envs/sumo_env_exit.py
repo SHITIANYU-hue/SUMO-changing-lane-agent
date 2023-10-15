@@ -23,8 +23,8 @@ def angle_between(p1, p2, rl_angle):
 
 
 def change_lane(follower_name,leader_name,ego_name,threshold_dis=3):
-	print('follower_name',follower_name)
-	print('leader name',leader_name)
+	# print('follower_name',follower_name)
+	# print('leader name',leader_name)
 	if len(follower_name)==0 and len(leader_name)==0:
 		change_lane=True
 		return change_lane
@@ -38,8 +38,8 @@ def change_lane(follower_name,leader_name,ego_name,threshold_dis=3):
 		distance_rel=follower_name[0][1]
 		speed_follow=traci.vehicle.getSpeed(follower_name[0][0])
 		speed_ego=traci.vehicle.getSpeed(ego_name)
-		print('follower rel',distance_rel)
-		print('follower speed',speed_follow,'ego speed',speed_ego)
+		# print('follower rel',distance_rel)
+		# print('follower speed',speed_follow,'ego speed',speed_ego)
 
 		if (distance_rel>threshold_dis) and speed_ego>=speed_follow:
 			change_lane_follow=True
@@ -48,7 +48,7 @@ def change_lane(follower_name,leader_name,ego_name,threshold_dis=3):
 
 	if len(leader_name)!=0:
 		distance_rel=leader_name[0][1]
-		print('leader rel',distance_rel)
+		# print('leader rel',distance_rel)
 		if (abs(distance_rel)>threshold_dis):
 			change_lane_lead=True
 		else:
@@ -74,7 +74,7 @@ def map_action(value,clamp=1):
 class SumoEnv_exit(gym.Env):
 	def __init__(self):
 		self.name = 'rlagent'
-		self.step_length = 0.4
+		self.step_length = 0.1
 		self.acc_history = deque([0, 0], maxlen=2)
 		self.grid_state_dim = 4
 		self.veh_num_dim=28
@@ -151,7 +151,7 @@ class SumoEnv_exit(gym.Env):
 
 		# traci.vehicle.add('exit_veh', routeID='route_0', typeID='exit', departLane='0',departSpeed='5')
 
-		traci.vehicle.add(self.name, routeID='route_0', typeID='rl', departLane='2',departSpeed=11)
+		traci.vehicle.add(self.name, routeID='route_0', typeID='rl', departLane='random',departSpeed=11)
 		# traci.vehicle.setColor(self.name,color='yellow')
 		# traci.vehicle.setColor('vehicle2_10',color='1,0,0')
 		# 	# Lane change model comes from bit set 100010101010
@@ -478,7 +478,7 @@ class SumoEnv_exit(gym.Env):
 
 	def detect_collision(self):
 		collisions = traci.simulation.getCollidingVehiclesIDList()
-		print('collision',collisions)
+		# print('collision',collisions)
 		if self.name in collisions:
 			self.collision = True
 			return True
@@ -490,10 +490,11 @@ class SumoEnv_exit(gym.Env):
 		Define a state as a vector of vehicles information
 		'''
 		# state=self.get_lane_grid_state()
-		# state=self.get_scan_range_state()
-		state=self.get_llm_state()
+		state=self.get_scan_range_state()
+		# state=self.get_llm_state()
 		# state=self.get_grid_state()
-
+		state=state.flatten()
+		state = np.squeeze(state)
 		return state
 	
 	
@@ -553,23 +554,24 @@ class SumoEnv_exit(gym.Env):
 			R_tot = R_comf + R_eff + R_safe
 
 		if reward_type=='secrm':
-			alpha_comf = 0.1
+			alpha_comf = 1
 			w_speed = 5
 			w_change = 0
 			w_eff = 1
-			w_safe=0
+			w_safe=0.1
 			R_exit=0
+			w_exit=0 ## currently we didn't add exit yet
 			this_vel,lead_vel,lead_info,headway,target_speed=self.get_ego_veh_info(self.name)
 			info=[this_vel,target_speed,lead_vel]
 			controller=GippsController()
 			# target_speed= controller.get_speed(info)
-			R_speed = -np.abs(this_vel - 20)
+			R_speed = -np.abs(this_vel - target_speed)
 			if action[0]!=0:
 				R_change = -1
 			else:
 				R_change = 0
 			# Eff
-			R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt not since it is not mandatory lane change
+			R_eff = w_eff*(w_speed*R_speed + w_change*R_change) ## i didn't add R_lane rihgt now since it is not mandatory lane change
 
 			if collision:
 				R_safe = -10
@@ -586,12 +588,13 @@ class SumoEnv_exit(gym.Env):
 					R_exit=-100
 				else:
 					R_exit=-1/exit_dis
+			R_exit=w_exit*R_exit
 			R_safe=w_safe*R_safe
 			jerk = self.compute_jerk()
 			R_comf = -alpha_comf*jerk**2
 			R_tot = R_comf + R_eff + R_safe+R_exit
 			
-		return [R_tot, jerk, this_vel, R_safe,R_exit]
+		return [R_tot, R_comf, R_eff, R_safe, R_exit]
 		
 
 	def apply_acceleration(self, vid, acc, smooth=False):
@@ -600,7 +603,7 @@ class SumoEnv_exit(gym.Env):
 		
 		this_vel = traci.vehicle.getSpeed(vid)
 		next_vel = max([this_vel + acc * 0.1, 0])
-		print('acc',acc,'this vel',this_vel,'next_vel',next_vel)
+		# print('acc',acc,'this vel',this_vel,'next_vel',next_vel)
 		if smooth:
 			traci.vehicle.slowDown(vid, next_vel, 1e-3)
 		else:
@@ -761,9 +764,9 @@ class SumoEnv_exit(gym.Env):
 				# change_left=False ### should disable
 				# change_right=True
 
-				print('ego secrm speed',speed_e,'north secrm speed',speed_n,'south secrm speed',speed_s)
-				print('ego veh speed:', this_vel)
-				print('change right',change_right,'change left',change_left)
+				# print('ego secrm speed',speed_e,'north secrm speed',speed_n,'south secrm speed',speed_s)
+				# print('ego veh speed:', this_vel)
+				# print('change right',change_right,'change left',change_left)
 
 				if speed_n>speed_e and speed_n >speed_s and change_left:
 					action[0]=2
@@ -779,7 +782,7 @@ class SumoEnv_exit(gym.Env):
 
 				if stop_and_go and (lane_id=='9775' or lane=='9778' or lane=='9783'):
 					action[0]=0
-				print('lane decision',action[0])
+				# print('lane decision',action[0])
 				# road=traci.vehicle.getRoadID('exit_veh')
 				# print('road',road)
 				if action[0] == 0 :
@@ -792,7 +795,7 @@ class SumoEnv_exit(gym.Env):
 
 		# Action legend : 0 stay, 1 change to right, 2 change to left
 		else:
-			print('lane',action[0])
+			# print('lane',action[0])
 			lane=traci.vehicle.getRoadID(self.name)
 
 			lane_num=int(traci.edge.getLaneNumber(lane))
@@ -815,7 +818,7 @@ class SumoEnv_exit(gym.Env):
 				controller=GippsController()
 				info=[target_speed,lead_vel,this_vel,speed_e]
 				acceleration= controller.get_accel(info)
-			print('ego hw',headway_e)
+			# print('ego hw',headway_e)
 			if stop_and_go and lane_id=='9775':
 				acceleration=5
 			if stop_and_go and lane_id=='9775' and this_vel<=1 :
@@ -823,11 +826,11 @@ class SumoEnv_exit(gym.Env):
 			# if headway_e<11:
 			# 	acceleration=-3
 			action[1]=acceleration
-			print('acceleration',action[1])
+			# print('acceleration',action[1])
 			self.apply_acceleration(self.name,action[1])
 
 		else:
-			print('acceleration',action[1])
+			# print('acceleration',action[1])
 			self.apply_acceleration(self.name,action[1])
 
 		edge = self.curr_lane.split("_")[0]
