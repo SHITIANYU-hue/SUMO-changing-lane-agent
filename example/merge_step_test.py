@@ -95,7 +95,7 @@ veh_name2 = 'vehicleg2_'
 veh_name3 = 'vehicleg3_' 
 veh_name4 = 'vehicleg4_' 
 
-flow_rate=10
+flow_rate=1
 
 if manual:
     from pynput import keyboard
@@ -104,7 +104,7 @@ if manual:
     listener.start()
 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
 for n_epi in range(args.epochs):
-    state = env.reset(gui=args.render, numVehicles=10,num_rl=3)
+    state = env.reset(gui=args.render, numVehicles=10,num_rl=1)
     agent_name=env.rl_names
     action={}
 
@@ -130,16 +130,12 @@ for n_epi in range(args.epochs):
         if t%flow_rate==0:
 
             traci.vehicle.add(veh_name, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
-            traci.vehicle.setSpeedMode(veh_name, departspeed)
 
             traci.vehicle.add(veh_name2, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
-            traci.vehicle.setSpeedMode(veh_name2, departspeed)
 
-            traci.vehicle.add(veh_name3, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
-            traci.vehicle.setSpeedMode(veh_name3, departspeed)
+            # traci.vehicle.add(veh_name3, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
 
-            traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
-            traci.vehicle.setSpeedMode(veh_name4, departspeed)
+            # traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
 
 
         vehPerin = get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2')+get_vehicle_number('9813_0')
@@ -149,12 +145,12 @@ for n_epi in range(args.epochs):
         density_in = (get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2'))/ traci.lane.getLength('9832_2')
         density_mid = vehPermid/ traci.lane.getLength('9832_2')
         density_out= vehPerout/ traci.lane.getLength('9728_2')
-        lane_flow=get_lane_flow('9712_0')+get_lane_flow('9712_1')+get_lane_flow('9712_2')+get_lane_flow('9712_3')
-        print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout', vehPerout,'density_in','laneflowmid',lane_flow,density_in,'density_out',density_out,'density_mid',density_mid)
+        lane_flow=get_lane_flow('9712_0')+get_lane_flow('9712_1')
+        print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout', vehPerout,'laneflowmid',lane_flow,'density_in',density_in,'density_out',density_out,'density_mid',density_mid)
 
         for i in range(len(agent_name)):
-            action[agent_name[i]]=[0,3]
-        next_state_, reward_info, done, info = env.step(action,sumo_lc=True,sumo_carfollow=True,stop_and_go=False,car_follow='Gipps',lane_change='SECRM')
+            action[agent_name[i]]=[0,-3]
+        next_state_, reward_info, done, info = env.step(action,sumo_lc=True,sumo_carfollow=False,stop_and_go=False,car_follow='Gipps',lane_change='SECRM')
         if done:
             print('rl vehicle run out of network!!')
             break
