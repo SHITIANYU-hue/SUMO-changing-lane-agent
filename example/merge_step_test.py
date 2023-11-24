@@ -21,7 +21,7 @@ parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to ad
 parser.add_argument('--train', type=bool, default=True, help="(default: True)")
 parser.add_argument('--render', type=bool, default=False, help="(default: False)")
 parser.add_argument('--manual', type=bool, default=False, help="(default: False)")
-parser.add_argument('--horizon', type=int, default=60000, help='number of simulation steps, (default: 6000)')
+parser.add_argument('--horizon', type=int, default=70000, help='number of simulation steps, (default: 6000)')
 parser.add_argument('--epochs', type=int, default=1, help='number of epochs, (default: 1000)')
 parser.add_argument('--tensorboard', type=bool, default=False, help='use_tensorboard, (default: False)')
 parser.add_argument("--load", type=str, default = 'no', help = 'load network name in ./model_weights')
@@ -56,6 +56,20 @@ state_rms = RunningMeanStd(state_dim)
 
 user_lane_input = 0
 user_acceleration_input = 0  # 0 for no change, 1 for acceleration, -1 for deceleration
+
+
+
+def calc_outflow(inID,outID):
+    state = []
+    statef = []
+    for detector in outID:
+        veh_num = traci.inductionloop.getLastStepVehicleNumber(detector)
+        state.append(veh_num)
+    for detector in inID:
+        veh_num = traci.inductionloop.getLastStepVehicleNumber(detector)
+        statef.append(veh_num)
+    return np.sum(np.array(state))
+
 
 def on_key_press(key):
     global user_lane_input, user_acceleration_input
@@ -94,8 +108,11 @@ veh_name_='vehicleg_'
 veh_name2 = 'vehicleg2_' 
 veh_name3 = 'vehicleg3_' 
 veh_name4 = 'vehicleg4_' 
+veh_name5 = 'vehicleg5_' 
 
-flow_rate=1
+inID=['9813_0loop','9832_0loop','9832_1loop','9832_2loop']
+outID=['9728_0loop','9728_1loop','9728_2loop']
+
 
 if manual:
     from pynput import keyboard
@@ -103,58 +120,76 @@ if manual:
     listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
     listener.start()
 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
-for n_epi in range(args.epochs):
-    state = env.reset(gui=args.render, numVehicles=10,num_rl=1)
-    agent_name=env.rl_names
-    action={}
+flow_rate=1
+average_flow=[]
+average_density=[]
+
+flow_rates=list(range(1, 2))
+
+# for i in range(len(flow_rates)):
+state = env.reset(gui=args.render, numVehicles=10,num_rl=1)
+agent_name=env.rl_names
+action={}
 
 
-    H=30 ## problem is it will stuck in the middle, need to investigate when will it swtich lane
-    H2=30
-    distance=5
-    distance2=7
-    departspeed=10
+H=30 ## problem is it will stuck in the middle, need to investigate when will it swtich lane
+H2=30
+distance=5
+distance2=7
+departspeed=10
+
+lane_flow=0
+density_mid=0
+t=0
+outflow=0
+for t in range(args.horizon):
+    print('step',t)
+    lane=0
+    acceleration = 0  # 0 for no change, 1 for acceleration, -1 for deceleration
+    veh_name=veh_name_+str(t)
+    veh_name2=veh_name2+str(t)
+    veh_name3=veh_name3+str(t)
+    veh_name4=veh_name4+str(t)
+
+    ## sim step=0.1, demand=10*1*3600=36000veh/h,e.g, flow_rate=10, inflow=3600*3=10800
+
+    if t%3==0: ##t 3
+
+        traci.vehicle.add(veh_name, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
+        traci.vehicle.add(veh_name3, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
+        traci.vehicle.add(veh_name2, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
+
+    # if t>10000 and t%3==0:
+    #     traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
+    #     # traci.vehicle.add(veh_name5, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
 
 
-    for t in range(args.horizon):
-        print('step',t)
-        lane=0
-        acceleration = 0  # 0 for no change, 1 for acceleration, -1 for deceleration
-        veh_name=veh_name_+str(t)
-        veh_name2=veh_name2+str(t)
-        veh_name3=veh_name3+str(t)
-        veh_name4=veh_name4+str(t)
+    # vehPerin = get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2')+get_vehicle_number('9813_0')
 
-        ## sim step=0.1, demand=10*1*3600=36000veh/h,e.g, flow_rate=10, inflow=3600*3=10800
-
-        if t%flow_rate==0:
-
-            traci.vehicle.add(veh_name, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
-
-            traci.vehicle.add(veh_name2, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
-
-            # traci.vehicle.add(veh_name3, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
-
-            # traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
-
-
-        vehPerin = get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2')+get_vehicle_number('9813_0')
-
-        vehPermid = get_vehicle_number('9712_0')+get_vehicle_number('9712_1')+get_vehicle_number('9712_2')+get_vehicle_number('9712_3')
-        vehPerout = get_vehicle_number('9728_0')+get_vehicle_number('9728_1')+get_vehicle_number('9728_2')
-        density_in = (get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2'))/ traci.lane.getLength('9832_2')
-        density_mid = vehPermid/ traci.lane.getLength('9832_2')
-        density_out= vehPerout/ traci.lane.getLength('9728_2')
-        lane_flow=get_lane_flow('9712_0')+get_lane_flow('9712_1')
-        print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout', vehPerout,'laneflowmid',lane_flow,'density_in',density_in,'density_out',density_out,'density_mid',density_mid)
-
-        for i in range(len(agent_name)):
-            action[agent_name[i]]=[0,-3]
-        next_state_, reward_info, done, info = env.step(action,sumo_lc=True,sumo_carfollow=False,stop_and_go=False,car_follow='Gipps',lane_change='SECRM')
-        if done:
-            print('rl vehicle run out of network!!')
-            break
-
-
-    print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout',vehPerout,'density_in',density_in,'density_out',density_out,'density_mid',density_mid)
-    env.close()
+    vehPermid = get_vehicle_number('9712_1')+get_vehicle_number('9712_2')+get_vehicle_number('9712_3') ##no right most lane
+    vehPerout = get_vehicle_number('9728_0')+get_vehicle_number('9728_1')+get_vehicle_number('9728_2')
+    density_in = (get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2'))/ traci.lane.getLength('9832_2')
+    density_mid += vehPermid/ traci.lane.getLength('9832_2')
+    density_out= vehPerout/ traci.lane.getLength('9728_2')
+    lane_flow+=get_lane_flow('9712_0')+get_lane_flow('9712_1')
+    # print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout', vehPerout,'laneflowmid',lane_flow,'density_in',density_in,'density_out',density_out,'density_mid',density_mid)
+    outflow=outflow+calc_outflow(inID,outID)
+    print('outflow',outflow/t)
+    t=t+1
+    for i in range(len(agent_name)):
+        action[agent_name[i]]=[2,3]
+    try:
+        next_state_, reward_info, done, info = env.step(action,sumo_lc=False,sumo_carfollow=True,stop_and_go=False,car_follow='Gipps',lane_change='SECRM')
+    except:
+        print('fail?')
+        pass
+    if done:
+        print('rl vehicle run out of network!!')
+        pass
+    # print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout',vehPerout,'density_in',density_in,'density_out',density_out,'density_mid',density_mid)
+    print('average laneflow:',lane_flow/t,'average density',density_mid/t)
+    average_flow.append(outflow/t)
+    average_density.append(density_mid/t)
+    np.save('l3average_flow30_0.1_idm_pos800_f100.npy',average_flow)
+    np.save('l3average_density30_0.1_idm_pos800_f100.npy',average_density)
+env.close()

@@ -1,0 +1,10 @@
+<additional>
+	<inductionLoop id='9728_0loop' lane='9728_0' pos='800' freq='100' file='data/resultsOfDetectors.xml'/> 
+	<inductionLoop id='9728_1loop' lane='9728_1' pos='800' freq='100' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='9728_2loop' lane='9728_2' pos='800' freq='100' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='9832_0loop' lane='9832_0' pos='10' freq='100' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='9832_1loop' lane='9832_1' pos='10' freq='100' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='9832_2loop' lane='9832_2' pos='10' freq='100' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='9813_0loop' lane='9813_0' pos='10' freq='100' file='data/resultsOfDetectors.xml'/>
+</additional>
+
