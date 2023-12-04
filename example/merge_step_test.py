@@ -21,7 +21,7 @@ parser.add_argument("--algo", type=str, default = 'ppo', help = 'algorithm to ad
 parser.add_argument('--train', type=bool, default=True, help="(default: True)")
 parser.add_argument('--render', type=bool, default=False, help="(default: False)")
 parser.add_argument('--manual', type=bool, default=False, help="(default: False)")
-parser.add_argument('--horizon', type=int, default=70000, help='number of simulation steps, (default: 6000)')
+parser.add_argument('--horizon', type=int, default=180000, help='number of simulation steps, (default: 6000)')
 parser.add_argument('--epochs', type=int, default=1, help='number of epochs, (default: 1000)')
 parser.add_argument('--tensorboard', type=bool, default=False, help='use_tensorboard, (default: False)')
 parser.add_argument("--load", type=str, default = 'no', help = 'load network name in ./model_weights')
@@ -71,26 +71,6 @@ def calc_outflow(inID,outID):
     return np.sum(np.array(state))
 
 
-def on_key_press(key):
-    global user_lane_input, user_acceleration_input
-    try:
-        key_char = key.char
-        if key_char in ['0', '1', '2']:
-            user_lane_input = int(key_char)
-        elif key_char == '3':
-            user_acceleration_input = 5  # Acceleration
-        elif key_char == '4':
-            user_acceleration_input = -5  # Deceleration
-    except AttributeError:
-        pass
-
-def on_key_release(key):
-    global user_lane_input, user_acceleration_input
-    if key.char in ['0', '1', '2']:
-        user_lane_input = 0
-    if key.char in ['3', '4']:
-        user_acceleration_input = 0
-
 get_vehicle_number = lambda lane_id: traci.lane.getLastStepVehicleNumber(lane_id)
 # calculate flow sum up the vehicle speeds on the lane and divide by the length of the lane to obtain flow in veh/s
 get_lane_flow = lambda lane_id: (traci.lane.getLastStepMeanSpeed(lane_id) * traci.lane.getLastStepVehicleNumber(lane_id))/traci.lane.getLength(lane_id)
@@ -114,11 +94,6 @@ inID=['9813_0loop','9832_0loop','9832_1loop','9832_2loop']
 outID=['9728_0loop','9728_1loop','9728_2loop']
 
 
-if manual:
-    from pynput import keyboard
-    # Create keyboard listener
-    listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
-    listener.start()
 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
 flow_rate=1
 average_flow=[]
@@ -136,60 +111,107 @@ H=30 ## problem is it will stuck in the middle, need to investigate when will it
 H2=30
 distance=5
 distance2=7
-departspeed=10
+departspeed=30
 
 lane_flow=0
 density_mid=0
 t=0
 outflow=0
-for t in range(args.horizon):
-    print('step',t)
-    lane=0
+rate = 10000  # veh/h
+
+
+mainline_demand = 7500
+merge_lane_demand = 1250
+interval = 1800  # interval for calculating average statistics
+simdur = args.horizon  # assuming args.horizon represents the total simulation duration
+t = 0
+curflow = 0
+curdensity = 0
+inflows = []
+densities = []
+
+
+while t < simdur:
+    print('step', t)
+    lane = 0
     acceleration = 0  # 0 for no change, 1 for acceleration, -1 for deceleration
-    veh_name=veh_name_+str(t)
-    veh_name2=veh_name2+str(t)
-    veh_name3=veh_name3+str(t)
-    veh_name4=veh_name4+str(t)
+    veh_name = veh_name_ + str(t)
+    veh_name2 = veh_name2 + str(t)
+    veh_name3 = veh_name3 + str(t)
+    veh_name4 = veh_name4 + str(t)
 
-    ## sim step=0.1, demand=10*1*3600=36000veh/h,e.g, flow_rate=10, inflow=3600*3=10800
+    # Mainline demand
+    if 0 <= t <= 54000:
+        inflow_rate_mainline = mainline_demand /36000
+    elif 54000 < t <= 90000:
+        inflow_rate_mainline = max(0, mainline_demand * (1 - (t - 54000) / 36000))/36000
+    else:
+        inflow_rate_mainline = 0
+    print('inflow_rate_mainline',inflow_rate_mainline)
+    
+    # Sample from a uniform distribution for mainline
+    u_mainline = np.random.uniform(0, 1)
+    # Check if a vehicle should be generated based on the sampled value for mainline
+    if u_mainline < inflow_rate_mainline:
+        print('add vehicle')
+        traci.vehicle.add(veh_name, routeID='route_2', typeID='human', departLane='random', departSpeed=departspeed)
 
-    if t%3==0: ##t 3
 
-        traci.vehicle.add(veh_name, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
-        traci.vehicle.add(veh_name3, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
-        traci.vehicle.add(veh_name2, routeID='route_2', typeID='human', departLane='random',departSpeed=departspeed)
+    # Merge lane demand
+    if 0 <= t <= 18000:
+        inflow_rate_merge_lane = merge_lane_demand *(t/18000)/36000
+    elif 18000 < t <= 54000:
+        inflow_rate_merge_lane = merge_lane_demand/36000
+    elif 54000 < t <= 72000:
+        inflow_rate_merge_lane = max(0, merge_lane_demand * (1 - (t - 54000) / 18000))/36000
+    else:
+        inflow_rate_merge_lane = 0
 
-    # if t>10000 and t%3==0:
-    #     traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
-    #     # traci.vehicle.add(veh_name5, routeID='route_1', typeID='human', departLane='random',departSpeed=departspeed)
+    print('inflow_rate_mergeline',inflow_rate_merge_lane)
+
+    # Sample from a uniform distribution for merge lane
+    u_merge_lane = np.random.uniform(0, 1)
+    # Check if a vehicle should be generated based on the sampled value for merge lane
+    if u_merge_lane < inflow_rate_merge_lane:
+        traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='random', departSpeed=departspeed)
 
 
-    # vehPerin = get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2')+get_vehicle_number('9813_0')
+    vehPermid = get_vehicle_number('9712_1') + get_vehicle_number('9712_2') + get_vehicle_number('9712_3')
+    vehPerout = get_vehicle_number('9728_0') + get_vehicle_number('9728_1') + get_vehicle_number('9728_2')
 
-    vehPermid = get_vehicle_number('9712_1')+get_vehicle_number('9712_2')+get_vehicle_number('9712_3') ##no right most lane
-    vehPerout = get_vehicle_number('9728_0')+get_vehicle_number('9728_1')+get_vehicle_number('9728_2')
-    density_in = (get_vehicle_number('9832_0') + get_vehicle_number('9832_1') + get_vehicle_number('9832_2'))/ traci.lane.getLength('9832_2')
-    density_mid += vehPermid/ traci.lane.getLength('9832_2')
-    density_out= vehPerout/ traci.lane.getLength('9728_2')
-    lane_flow+=get_lane_flow('9712_0')+get_lane_flow('9712_1')
-    # print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout', vehPerout,'laneflowmid',lane_flow,'density_in',density_in,'density_out',density_out,'density_mid',density_mid)
-    outflow=outflow+calc_outflow(inID,outID)
-    print('outflow',outflow/t)
-    t=t+1
+    curflow = curflow + calc_outflow(inID, outID)
+    curdensity += vehPermid / traci.lane.getLength('9712_1')
+    # print('curflow',curflow,'cudensity',curdensity)
+
+    if t % interval == 0:
+        # append average flow and density for the last interval
+        inflows.append(curflow / interval)
+        densities.append(curdensity / interval)
+        print('average laneflow:', curflow / interval, 'average density', curdensity / interval)
+
+        # reset averages
+        curflow = 0
+        curdensity = 0
+
+    t = t + 1
+
     for i in range(len(agent_name)):
-        action[agent_name[i]]=[2,3]
+        action[agent_name[i]] = [2, 3]
+    
     try:
-        next_state_, reward_info, done, info = env.step(action,sumo_lc=False,sumo_carfollow=True,stop_and_go=False,car_follow='Gipps',lane_change='SECRM')
+        next_state_, reward_info, done, info = env.step(
+            action, sumo_lc=False, sumo_carfollow=True, stop_and_go=False, car_follow='Gipps', lane_change='SECRM')
     except:
         print('fail?')
         pass
+    
     if done:
         print('rl vehicle run out of network!!')
         pass
-    # print('vehPerin',vehPerin,'vehPermid',vehPermid,'vehPerout',vehPerout,'density_in',density_in,'density_out',density_out,'density_mid',density_mid)
-    print('average laneflow:',lane_flow/t,'average density',density_mid/t)
-    average_flow.append(outflow/t)
-    average_density.append(density_mid/t)
-    np.save('l3average_flow30_0.1_idm_pos800_f100.npy',average_flow)
-    np.save('l3average_density30_0.1_idm_pos800_f100.npy',average_density)
+    
+
+    # # Save the average values
+    np.save('Main7500Merge1250omar_average_flow30_1.2_idm_pos800_f100_inter100_w1800.npy', inflows)
+    np.save('Main7500Merge1250omar_average_density30_1.2_idm_pos800_f100_inter100_w1800.npy', densities)
+
 env.close()
