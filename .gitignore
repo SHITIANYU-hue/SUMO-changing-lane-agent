@@ -9,4 +9,4 @@ runs/*
 *.npy
 model_weights/*
 dataplot/*
-result/*
+results/*
