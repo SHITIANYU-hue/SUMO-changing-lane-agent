@@ -10,7 +10,7 @@ import random
 from agents.ppo import PPO
 from agents.sac import SAC
 from agents.ddpg import DDPG
-
+import json
 from utils.utils import make_transition, Dict, RunningMeanStd
 os.makedirs('./model_weights', exist_ok=True)
 
@@ -59,15 +59,12 @@ user_acceleration_input = 0  # 0 for no change, 1 for acceleration, -1 for decel
 
 
 
-def calc_outflow(inID,outID):
+def calc_outflow(outID): 
     state = []
     statef = []
     for detector in outID:
-        veh_num = traci.inductionloop.getLastStepVehicleNumber(detector)
+        veh_num = traci.inductionloop.getIntervalVehicleNumber(detector)
         state.append(veh_num)
-    for detector in inID:
-        veh_num = traci.inductionloop.getLastStepVehicleNumber(detector)
-        statef.append(veh_num)
     return np.sum(np.array(state))
 
 
@@ -90,8 +87,10 @@ veh_name3 = 'vehicleg3_'
 veh_name4 = 'vehicleg4_' 
 veh_name5 = 'vehicleg5_' 
 
-inID=['9813_0loop','9832_0loop','9832_1loop','9832_2loop']
-outID=['9728_0loop','9728_1loop','9728_2loop']
+outID_9728=['9728_0loop','9728_1loop','9728_2loop']
+outID_9832=['9832_0loop','9832_1loop','9832_2loop']
+outID_9575=['9575_0loop','9575_1loop','9575_2loop']
+outID_9813=['9813_0loop']
 
 
 # state = np.clip((state_ - state_rms.mean) / (state_rms.var ** 0.5 + 1e-8), -5, 5)
@@ -122,15 +121,25 @@ rate = 10000  # veh/h
 
 mainline_demand = 7500
 merge_lane_demand = 1250
-interval = 1800  # interval for calculating average statistics
+interval = 2000  # interval for calculating average statistics
 simdur = args.horizon  # assuming args.horizon represents the total simulation duration
-t = 0
 curflow = 0
+curflow_9813 = 0
+curflow_9832 = 0
+curflow_9575 = 0
+
 curdensity = 0
 inflows = []
+inflows_9813 = []
+inflows_9832 = []
+inflows_9575 = []
+
 densities = []
+data=[]
+warmup=101
+t = 0
 
-
+t=t+warmup
 while t < simdur:
     print('step', t)
     lane = 0
@@ -147,13 +156,12 @@ while t < simdur:
         inflow_rate_mainline = max(0, mainline_demand * (1 - (t - 54000) / 36000))/36000
     else:
         inflow_rate_mainline = 0
-    print('inflow_rate_mainline',inflow_rate_mainline)
+    # print('inflow_rate_mainline',inflow_rate_mainline)
     
     # Sample from a uniform distribution for mainline
     u_mainline = np.random.uniform(0, 1)
     # Check if a vehicle should be generated based on the sampled value for mainline
     if u_mainline < inflow_rate_mainline:
-        print('add vehicle')
         traci.vehicle.add(veh_name, routeID='route_2', typeID='human', departLane='random', departSpeed=departspeed)
 
 
@@ -167,30 +175,45 @@ while t < simdur:
     else:
         inflow_rate_merge_lane = 0
 
-    print('inflow_rate_mergeline',inflow_rate_merge_lane)
+    # print('inflow_rate_mergeline',inflow_rate_merge_lane)
 
     # Sample from a uniform distribution for merge lane
     u_merge_lane = np.random.uniform(0, 1)
     # Check if a vehicle should be generated based on the sampled value for merge lane
     if u_merge_lane < inflow_rate_merge_lane:
-        traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='random', departSpeed=departspeed)
+        traci.vehicle.add(veh_name4, routeID='route_1', typeID='human', departLane='free', departSpeed=departspeed)
 
 
     vehPermid = get_vehicle_number('9712_1') + get_vehicle_number('9712_2') + get_vehicle_number('9712_3')
     vehPerout = get_vehicle_number('9728_0') + get_vehicle_number('9728_1') + get_vehicle_number('9728_2')
 
-    curflow = curflow + calc_outflow(inID, outID)
+
+
+
     curdensity += vehPermid / traci.lane.getLength('9712_1')
     # print('curflow',curflow,'cudensity',curdensity)
 
     if t % interval == 0:
         # append average flow and density for the last interval
-        inflows.append(curflow / interval)
+        curflow = curflow + calc_outflow(outID_9728)
+        curflow_9813 = curflow_9813 + calc_outflow(outID_9813)
+        curflow_9832 = curflow_9832 + calc_outflow(outID_9832)
+        curflow_9575 = curflow_9575 + calc_outflow(outID_9575)
+
+        inflows.append(curflow )
+        inflows_9813.append(curflow_9813 )
+        inflows_9832.append(curflow_9832 )
+        inflows_9575.append(curflow_9575 )
+        print('flow stas','9728',calc_outflow(outID_9728),'9832',calc_outflow(outID_9832),'9575',calc_outflow(outID_9575))
+
         densities.append(curdensity / interval)
         print('average laneflow:', curflow / interval, 'average density', curdensity / interval)
 
         # reset averages
         curflow = 0
+        curflow_9813=0
+        curflow_9832=0
+        curflow_9575=0
         curdensity = 0
 
     t = t + 1
@@ -210,8 +233,11 @@ while t < simdur:
         pass
     
 
-    # # Save the average values
-    np.save('Main7500Merge1250omar_average_flow30_1.2_idm_pos800_f100_inter100_w1800.npy', inflows)
-    np.save('Main7500Merge1250omar_average_density30_1.2_idm_pos800_f100_inter100_w1800.npy', densities)
+    # # # # Save the average values
+    np.save('results/9728/Main7500_merge1250average_flow30_1.2_idm_lcCoop1_lcStrategic1_freedepart2.npy', inflows)
+    np.save('results/9813/Main7500_merge1250average_flow30_1.2_idm_lcCoop1_lcStrategic1_freedepart2.npy', inflows_9813)
+    np.save('results/9832/Main7500_merge1250average_flow30_1.2_idm_lcCoop1_lcStrategic1_freedepart2.npy', inflows_9832)
+    np.save('results/9575/Main7500_merge1250average_flow30_1.2_idm_lcCoop1_lcStrategic1_freedepart2.npy', inflows_9575)
+    np.save('results/Main7500_merge1250average_density30_1.2_idm_lcCoop1_lcStrategic1_freedepart2.npy', densities)
 
 env.close()
