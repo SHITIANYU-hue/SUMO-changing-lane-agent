@@ -1,0 +1,1 @@
+run sumo-gui in termial and load sumoconfig.sumo.cfg can see the simulation

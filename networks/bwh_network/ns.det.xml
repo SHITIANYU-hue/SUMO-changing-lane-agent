@@ -1,0 +1,10 @@
+<additional>
+	<inductionLoop id='1' lane='22072334#0_0' pos='20' period='200' file='data/resultsOfDetectors.xml'/> 
+	<inductionLoop id='2' lane='22072334#0_1' pos='20' period='200' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='3' lane='22072334#0_2' pos='20' period='200' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='4' lane='241919282_0' pos='10' period='200' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='5' lane='22072334#1_0' pos='800' period='200' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='6' lane='22072334#1_1' pos='800' period='200' file='data/resultsOfDetectors.xml'/>
+	<inductionLoop id='7' lane='22072334#1_2' pos='800' period='200' file='data/resultsOfDetectors.xml'/>
+</additional>
+
