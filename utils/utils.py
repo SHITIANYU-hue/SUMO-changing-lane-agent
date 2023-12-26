@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import traci
 
 class Dict(dict):
     def __init__(self,config,section_name,location = False):
@@ -108,3 +109,26 @@ def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, 
     new_count = tot_count
 
     return new_mean, new_var, new_count
+
+def calc_bottlespeed(bottleneck_detector):
+    speed = []
+    for detector in bottleneck_detector:
+        dspeed = traci.inductionloop.getLastStepMeanSpeed(detector)
+        if dspeed < 0:
+            dspeed = 0                                              
+            #The value of no-vehicle signal will affect the value of the reward
+        speed.append(dspeed)
+    return np.mean(np.array(speed))
+
+def calc_emission():
+    vidlist = traci.edge.getIDList()
+    co = []
+    hc = []
+    nox = []
+    pmx = []
+    for vid in vidlist:
+        co.append(traci.edge.getCOEmission(vid))
+        hc.append(traci.edge.getHCEmission(vid))
+        nox.append(traci.edge.getNOxEmission(vid))
+        pmx.append(traci.edge.getPMxEmission(vid))
+    return np.sum(np.array(co)),np.sum(np.array(hc)),np.sum(np.array(nox)),np.sum(np.array(pmx))
