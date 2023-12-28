@@ -120,15 +120,19 @@ def calc_bottlespeed(bottleneck_detector):
         speed.append(dspeed)
     return np.mean(np.array(speed))
 
-def calc_emission():
+def calc_emission_speed():
     vidlist = traci.edge.getIDList()
+    lanelist=['9575_0','9575_1','9575_2','9712_0','9712_1','9712_2','9712_3','9813_0']
     co = []
     hc = []
     nox = []
     pmx = []
+    avg_speed=[]
     for vid in vidlist:
         co.append(traci.edge.getCOEmission(vid))
         hc.append(traci.edge.getHCEmission(vid))
         nox.append(traci.edge.getNOxEmission(vid))
         pmx.append(traci.edge.getPMxEmission(vid))
-    return np.sum(np.array(co)),np.sum(np.array(hc)),np.sum(np.array(nox)),np.sum(np.array(pmx))
+    for lane in lanelist:
+        avg_speed.append(traci.lane.getLastStepMeanSpeed(lane))
+    return np.sum(np.array(co)),np.sum(np.array(hc)),np.sum(np.array(nox)),np.sum(np.array(pmx)),np.mean(avg_speed)
