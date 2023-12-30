@@ -70,7 +70,7 @@ class SumoEnv_merge_net(gym.Env):
 		self.done = False
 		self.lane_change_model = 0b00100000000 ## disable lane change
 		self.speed_mode=32 ## disable all check for speed
-
+		self.stats_path='/home/tianyu/code/SUMO-changing-lane-agent/results/stat1.xml'
 		# Starting sumo
 		home = os.getenv("HOME")
 
@@ -79,6 +79,9 @@ class SumoEnv_merge_net(gym.Env):
 		else:
 			sumoBinary = home + "/code/sumo/bin/sumo"
 		sumoCmd = [sumoBinary, "-c", self.network_conf, "--no-step-log", "true", "-W"]
+		save_stats=True
+		if save_stats:
+			sumoCmd.extend(["--statistic-output", self.stats_path, "--duration-log.statistics"])
 		traci.start(sumoCmd)
 
 		self.lane_ids = traci.lane.getIDList()
