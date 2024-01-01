@@ -136,3 +136,9 @@ def calc_emission_speed():
     for lane in lanelist:
         avg_speed.append(traci.lane.getLastStepMeanSpeed(lane))
     return np.sum(np.array(co)),np.sum(np.array(hc)),np.sum(np.array(nox)),np.sum(np.array(pmx)),np.mean(avg_speed)
+
+
+def set_vsl(v,VSLlist):
+    number_of_lane = len(VSLlist)
+    for j in range(number_of_lane):
+        traci.lane.setMaxSpeed(VSLlist[j], v[j])
